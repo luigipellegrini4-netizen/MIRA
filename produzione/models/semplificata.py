@@ -204,6 +204,43 @@ class ControlloSessioneSemplificata(ValidatedModel):
             raise ValidationError("Il controllo contiene valori non previsti per il tipo selezionato.")
 
 
+class AssociazioneTankBatch(ValidatedModel):
+    tank = models.ForeignKey(
+        ControlloSessioneSemplificata, on_delete=models.PROTECT,
+        related_name="associazioni_batch",
+    )
+    batch = models.OneToOneField(
+        ControlloSessioneSemplificata, on_delete=models.PROTECT,
+        related_name="associazione_tank",
+    )
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="associazioni_tank_batch_registrate",
+    )
+    registrato_il = models.DateTimeField(default=timezone.now)
+    note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["tank__numero", "batch__numero", "pk"]
+        constraints = [
+            models.CheckConstraint(condition=~Q(tank=models.F("batch")), name="tank_batch_distinti"),
+        ]
+
+    def __str__(self):
+        return f"Tank {self.tank.numero} ← Batch {self.batch.numero}"
+
+    def clean(self):
+        super().clean()
+        if not self.tank_id or not self.batch_id:
+            return
+        if self.tank.tipo != ControlloSessioneSemplificata.Tipo.TANK:
+            raise ValidationError("Il controllo di destinazione deve essere un tank.")
+        if self.batch.tipo != ControlloSessioneSemplificata.Tipo.BATCH:
+            raise ValidationError("Il controllo associato deve essere un batch.")
+        if self.tank.sessione_id != self.batch.sessione_id:
+            raise ValidationError("Tank e batch devono appartenere alla stessa produzione RoboQbo.")
+
+
 class RiepilogoSessioneSemplificata(ValidatedModel):
     sessione = models.OneToOneField(SessioneProduzioneSemplificata, on_delete=models.PROTECT, related_name="riepilogo_finale")
     vasetti_buoni = models.PositiveIntegerField(default=0)

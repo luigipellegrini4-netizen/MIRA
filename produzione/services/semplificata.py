@@ -6,6 +6,7 @@ from datetime import datetime
 
 from accounts.permissions import require_permission
 from produzione.models import (
+    AssociazioneTankBatch,
     AzioneNCSessioneSemplificata,
     ControlloSessioneSemplificata,
     NonConformitaSessioneSemplificata,
@@ -104,14 +105,29 @@ class ProduzioneSemplificataService:
 
     @staticmethod
     @transaction.atomic
-    def registra_controllo(*, actor, sessione, tipo, numero, **values):
+    def registra_controllo(*, actor, sessione, tipo, numero, batch_associati=(), **values):
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
         if current.stato != "APERTA":
             raise ValidationError("La sessione è chiusa.")
-        return _record(ControlloSessioneSemplificata(
+        control = _record(ControlloSessioneSemplificata(
             sessione=current, tipo=tipo, numero=numero, registrato_da=actor, **values
         ))
+        if tipo == ControlloSessioneSemplificata.Tipo.TANK:
+            batch_ids = [batch.pk for batch in batch_associati]
+            batches = list(ControlloSessioneSemplificata.objects.select_for_update().filter(
+                pk__in=batch_ids, sessione=current, tipo=ControlloSessioneSemplificata.Tipo.BATCH,
+                associazione_tank__isnull=True,
+            ))
+            if len(batches) != len(set(batch_ids)) or not batches:
+                raise ValidationError("Selezionare batch liberi appartenenti alla stessa produzione RoboQbo.")
+            for batch in batches:
+                _record(AssociazioneTankBatch(
+                    tank=control, batch=batch, registrato_da=actor,
+                ))
+        elif batch_associati:
+            raise ValidationError("I batch possono essere associati soltanto a un controllo tank.")
+        return control
 
     @staticmethod
     @transaction.atomic

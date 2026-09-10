@@ -78,7 +78,7 @@ def open_filling(request):
 @permitted("produzione.view_sessioneproduzionesemplificata")
 def session(request, pk):
     obj = get_object_or_404(SessioneProduzioneSemplificata.objects.select_related("postazione__risorsa", "ricetta__articolo", "lotto_origine"), pk=pk)
-    controls = list(obj.controlli.all())
+    controls = list(obj.controlli.prefetch_related("associazioni_batch__batch"))
     ncs = list(obj.non_conformita_semplificate.select_related("controllo"))
     nonconforming_control_ids = {control.pk for control in controls if not control.conforme}
     nc_count = len(nonconforming_control_ids) + sum(

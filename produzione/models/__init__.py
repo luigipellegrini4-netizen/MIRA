@@ -9,7 +9,7 @@ from .azienda import (LineaProduttiva, PostazioneLinea, TurnoOperativo, PianoPro
     CarrelloSessione, TrattamentoCarrello, RiepilogoInvasettamento, CodiceProduzione)
 from .semplificata import (SessioneProduzioneSemplificata, PrelievoSessioneSemplificata,
     ControlloSessioneSemplificata, RiepilogoSessioneSemplificata, NonConformitaSessioneSemplificata,
-    AzioneNCSessioneSemplificata, VerificaNCSessioneSemplificata)
+    AzioneNCSessioneSemplificata, VerificaNCSessioneSemplificata, AssociazioneTankBatch)
 
 __all__ = ["Ricetta", "RigaRicetta", "TipoLavorazione", "RequisitoInputTipoLavorazione",
            "RequisitoOutputTipoLavorazione", "CicloProduzione", "Lavorazione", "InputLavorazione", "OutputLavorazione",
@@ -20,3 +20,4 @@ __all__ = ["Ricetta", "RigaRicetta", "TipoLavorazione", "RequisitoInputTipoLavor
 __all__ += ["SessioneProduzioneSemplificata", "PrelievoSessioneSemplificata", "ControlloSessioneSemplificata",
            "RiepilogoSessioneSemplificata", "NonConformitaSessioneSemplificata"]
 __all__ += ["AzioneNCSessioneSemplificata", "VerificaNCSessioneSemplificata"]
+__all__ += ["AssociazioneTankBatch"]

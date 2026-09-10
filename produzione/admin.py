@@ -254,7 +254,7 @@ from .models import (LineaProduttiva, PostazioneLinea, TurnoOperativo, PianoProd
     CarrelloSessione, TrattamentoCarrello, RiepilogoInvasettamento, CodiceProduzione)
 from .models import (SessioneProduzioneSemplificata, PrelievoSessioneSemplificata,
     ControlloSessioneSemplificata, RiepilogoSessioneSemplificata, NonConformitaSessioneSemplificata,
-    AzioneNCSessioneSemplificata, VerificaNCSessioneSemplificata)
+    AzioneNCSessioneSemplificata, VerificaNCSessioneSemplificata, AssociazioneTankBatch)
 
 
 @admin.register(LineaProduttiva)
@@ -336,6 +336,12 @@ class ControlloSessioneSemplificataAdmin(admin.ModelAdmin):
     list_display = ("sessione", "tipo", "numero", "conforme", "registrato_il")
     list_filter = ("tipo",)
     search_fields = ("sessione__lotto_codice",)
+
+
+@admin.register(AssociazioneTankBatch)
+class AssociazioneTankBatchAdmin(admin.ModelAdmin):
+    list_display = ("tank", "batch", "registrato_da", "registrato_il")
+    search_fields = ("tank__sessione__lotto_codice",)
 
 
 @admin.register(RiepilogoSessioneSemplificata)

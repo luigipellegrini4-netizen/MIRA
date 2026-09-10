@@ -4,7 +4,8 @@ from django.utils import timezone
 
 from anagrafiche.models import Articolo, CategoriaArticolo, Ubicazione
 from magazzino.models import Giacenza
-from produzione.models import Ricetta, SessioneProduzioneSemplificata
+from produzione.models import (ControlloSessioneSemplificata, Ricetta,
+                               SessioneProduzioneSemplificata)
 
 
 def recipe_queryset_for_category(code, name_match):
@@ -134,6 +135,11 @@ class ControlForm(forms.Form):
     )
     gradi_brix = forms.DecimalField(required=False, label="°Brix", max_digits=6, decimal_places=3)
     ph = forms.DecimalField(required=False, label="pH", max_digits=5, decimal_places=3)
+    batch_associati = forms.ModelMultipleChoiceField(
+        queryset=ControlloSessioneSemplificata.objects.none(), required=False,
+        label="Batch associati", widget=forms.CheckboxSelectMultiple,
+        help_text="Sono proposti soltanto i batch registrati e non ancora assegnati a un tank.",
+    )
     esito_pastorizzazione = forms.ChoiceField(
         required=False, label="2ª pastorizzazione",
         choices=[("", "—"), ("C", "C"), ("NC", "NC"), ("NA", "NA")],
@@ -156,17 +162,33 @@ class ControlForm(forms.Form):
             next_numbers[control_type] = (last_number or 0) + 1
             self.fields["tipo"].widget.attrs[f"data-next-{control_type.lower()}"] = next_numbers[control_type]
         self.fields["numero"].initial = next_numbers[initial_type]
+        self.fields["batch_associati"].queryset = session.controlli.filter(
+            tipo="BATCH", associazione_tank__isnull=True,
+        ).order_by("numero")
+        self.fields["batch_associati"].label_from_instance = lambda control: (
+            f"Batch {control.numero}"
+            f" · {control.inizio.strftime('%H:%M') if control.inizio else 'inizio —'}"
+            f" / {control.fine.strftime('%H:%M') if control.fine else 'fine —'}"
+            f" · {'C' if control.conforme else 'NC'}"
+        )
         field_types = {
             "inizio": "BATCH",
             "fine": "BATCH",
             "esito_tracciato_termico": "BATCH",
             "gradi_brix": "TANK",
             "ph": "TANK",
+            "batch_associati": "TANK",
             "esito_pastorizzazione": "CARRELLO",
             "esito_shock_vuoto": "CARRELLO",
         }
         for field_name, control_type in field_types.items():
             self.fields[field_name].widget.attrs["data-control-for"] = control_type
+
+    def clean(self):
+        data = super().clean()
+        if data.get("tipo") == "TANK" and not data.get("batch_associati"):
+            self.add_error("batch_associati", "Associare almeno un batch al tank.")
+        return data
 
 
 class BatchControlLineForm(forms.Form):
