@@ -36,3 +36,17 @@ document.querySelectorAll('[data-control-type]').forEach(selector => {
   selector.addEventListener('change', () => updateControlFields(true));
   updateControlFields(false);
 });
+
+document.querySelectorAll('[data-nc-action-type]').forEach(selector => {
+  const form = selector.closest('form');
+  const updateActionFields = () => {
+    form.querySelectorAll('[data-nc-action-for]').forEach(input => {
+      const allowed = input.dataset.ncActionFor.split(',').includes(selector.value);
+      const container = input.closest('.field') || input.closest('p');
+      if (container) container.hidden = !allowed;
+      input.disabled = !allowed;
+    });
+  };
+  selector.addEventListener('change', updateActionFields);
+  updateActionFields();
+});

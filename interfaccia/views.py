@@ -364,8 +364,11 @@ def execute(request, op, d, work=None, case=None):
     elif op == "nc_verifica":
         NonConformityService.verify(actor=actor, non_conformita=case, esito=d["esito"], descrizione=d["descrizione"], note=note)
     elif op == "nc_azione":
+        stock = d.get("origine_stock")
         NonConformityService.action(actor=actor, non_conformita=case, tipo_azione=d["tipo_azione"], descrizione=d["descrizione"],
-            lotto=d["lotto"], quantita=d["quantita"], origine=position(d, "origine"), destinazione=position(d, "destinazione"), lavorazione=d["lavorazione"], note=note)
+            lotto=d["lotto"], quantita=d["quantita"],
+            origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano) if stock else None,
+            destinazione=position(d, "destinazione"), lavorazione=None, note=note)
 
 
 @login_required

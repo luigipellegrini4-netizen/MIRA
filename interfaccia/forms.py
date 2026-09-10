@@ -153,13 +153,39 @@ class OperationForm(forms.Form):
             f["lavorazione"] = choice(Lavorazione, "Lavorazione coinvolta", False)
             f["descrizione"] = forms.CharField(label="Descrizione del problema", widget=forms.Textarea(attrs={"rows": 4}))
         elif operation == "nc_azione":
-            f["tipo_azione"] = forms.ChoiceField(label="Azione", choices=AzioneNonConformita.TipoAzione.choices)
+            action_choices = [choice for choice in AzioneNonConformita.TipoAzione.choices if choice[0] != "RILAVORAZIONE"]
+            f["tipo_azione"] = forms.ChoiceField(
+                label="Azione", choices=action_choices,
+                widget=forms.Select(attrs={"data-nc-action-type": ""}),
+            )
             f["descrizione"] = forms.CharField(label="Descrizione", widget=forms.Textarea(attrs={"rows": 3}))
-            f["lotto"] = choice(Lotto, "Lotto (se non già associato alla NC)", False)
+            if case and case.lotto_id:
+                f["lotto"] = forms.ModelChoiceField(
+                    Lotto.objects.filter(pk=case.lotto_id), label="Lotto coinvolto",
+                    initial=case.lotto, disabled=True,
+                    help_text="Il lotto è quello collegato alla non conformità.",
+                )
+                selected_lot_id = case.lotto_id
+            else:
+                f["lotto"] = choice(Lotto, "Lotto coinvolto", False)
+                selected_lot_id = self.data.get("lotto") if self.is_bound else None
             f["quantita"] = amount(required=False)
-            position_fields(f, "origine", "Origine", False)
+            stocks = Giacenza.objects.none()
+            if str(selected_lot_id or "").isdigit():
+                stocks = Giacenza.objects.filter(
+                    lotto_id=selected_lot_id, quantita__gt=0, ubicazione__attiva=True,
+                ).select_related("lotto__articolo", "ubicazione").order_by(
+                    "ubicazione__codice", "scaffale", "piano",
+                )
+            f["origine_stock"] = StockChoiceField(
+                stocks, label="Origine: ubicazione, scaffale e piano", required=False,
+                empty_label="Nessuna giacenza disponibile" if selected_lot_id else "Seleziona prima il lotto",
+            )
             position_fields(f, "destinazione", "Destinazione", False)
-            f["lavorazione"] = choice(Lavorazione, "Nuova lavorazione correttiva", False)
+            for name in ("quantita", "origine_stock"):
+                f[name].widget.attrs["data-nc-action-for"] = "QUARANTENA,REINTEGRO,SCARTO"
+            for name in ("destinazione", "destinazione_scaffale", "destinazione_piano"):
+                f[name].widget.attrs["data-nc-action-for"] = "QUARANTENA,REINTEGRO"
         elif operation == "nc_verifica":
             f["esito"] = forms.ChoiceField(label="Esito", choices=[("EFFICACE", "Efficace"), ("NON_EFFICACE", "Non efficace")])
             f["descrizione"] = forms.CharField(label="Verifica eseguita", widget=forms.Textarea(attrs={"rows": 3}))
@@ -199,6 +225,21 @@ class OperationForm(forms.Form):
                 data["conforme"] = {"si": True, "no": False}.get(data.get("conforme"))
             except (ValueError, ValidationError):
                 self.add_error("valore", "Il valore non è valido per il tipo di controllo selezionato.")
+        if self.operation == "nc_azione":
+            action = data.get("tipo_azione")
+            physical = action in {"QUARANTENA", "REINTEGRO", "SCARTO"}
+            stock = data.get("origine_stock")
+            lot = data.get("lotto")
+            if physical and not stock:
+                self.add_error("origine_stock", "Selezionare la posizione di origine del lotto.")
+            if physical and not data.get("quantita"):
+                self.add_error("quantita", "Indicare la quantità interessata.")
+            if stock and lot and stock.lotto_id != lot.pk:
+                self.add_error("origine_stock", "La posizione non appartiene al lotto della NC.")
+            if stock and data.get("quantita") and data["quantita"] > stock.quantita:
+                self.add_error("quantita", f"Disponibilità insufficiente: massimo {stock.quantita:g} {stock.lotto.articolo.unita_misura}.")
+            if action in {"QUARANTENA", "REINTEGRO"} and not data.get("destinazione"):
+                self.add_error("destinazione", "Indicare la destinazione del materiale.")
         return data
 
 
