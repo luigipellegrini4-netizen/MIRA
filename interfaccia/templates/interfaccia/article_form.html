@@ -1,0 +1,4 @@
+{% extends 'interfaccia/base.html' %}{% block title %}{% if article %}Modifica {{ article.codice }}{% else %}Nuovo articolo{% endif %} · MIRA{% endblock %}{% block content %}
+<a class="back" href="{% url 'ui:anagrafiche' %}">← Anagrafiche articoli</a><div class="page-head"><div><p class="eyebrow">ANAGRAFICHE{% if article %} · {{ article.codice }}{% endif %}</p><h1>{% if article %}Modifica articolo{% else %}Nuovo articolo{% endif %}</h1><p class="muted">Compila i dati identificativi, logistici e di tracciabilità.</p></div></div>
+<section class="panel form-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="form-footer"><a class="button secondary" href="{% url 'ui:anagrafiche' %}">Annulla</a><button class="button primary" type="submit">Salva modifiche</button></div></form></section>
+{% endblock %}

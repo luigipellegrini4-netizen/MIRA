@@ -1,0 +1,20 @@
+{% extends 'interfaccia/base.html' %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">STORICO DI MAGAZZINO</p><h1>Movimenti</h1><p class="muted">Carichi, prelievi e trasferimenti registrati.</p></div></div>
+{% include 'interfaccia/warehouse_tabs.html' %}
+<section class="panel">
+    {% include 'interfaccia/search.html' %}
+    <div class="table-wrap"><table>
+        <thead><tr><th>Data / ID</th><th>Operazione</th><th>Lotto</th><th>Percorso</th><th class="number">Quantità</th><th>Operatore</th></tr></thead>
+        <tbody>{% for m in page %}<tr>
+            <td>{{ m.data_ora|date:'d/m/Y H:i' }}<small>#{{ m.pk }}</small></td>
+            <td><span class="pill neutral">{{ m.get_tipo_display }}</span><small>{{ m.note|truncatechars:100 }}</small></td>
+            <td><a href="{% url 'ui:lot' m.lotto_id %}">{{ m.lotto.codice_lotto }}</a></td>
+            <td>{{ m.ubicazione_origine.nome|default:'Esterno' }} → {{ m.ubicazione_destinazione.nome|default:'Uscita' }}</td>
+            <td class="number">{{ m.quantita|floatformat:'-6' }} {{ m.lotto.articolo.unita_misura }}</td>
+            <td>{{ m.eseguito_da.username }}</td>
+        </tr>{% empty %}<tr><td colspan="6" class="empty">Nessun movimento trovato.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% include 'interfaccia/pagination.html' %}
+</section>
+{% endblock %}

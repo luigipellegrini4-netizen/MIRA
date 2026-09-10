@@ -1,0 +1,6 @@
+<nav class="warehouse-tabs" aria-label="Anagrafiche">
+{% if perms.anagrafiche.view_articolo %}<a class="{% if catalog_tab == 'articoli' %}active{% endif %}" href="{% url 'ui:anagrafiche' %}">Articoli</a>{% endif %}
+{% if perms.anagrafiche.view_categoriaarticolo %}<a class="{% if catalog_tab == 'categorie' %}active{% endif %}" href="{% url 'ui:categories' %}">Categorie articoli</a>{% endif %}
+{% if perms.anagrafiche.view_fornitore %}<a class="{% if catalog_tab == 'fornitori' %}active{% endif %}" href="{% url 'ui:suppliers' %}">Fornitori</a>{% endif %}
+{% if perms.anagrafiche.view_ubicazione %}<a class="{% if catalog_tab == 'ubicazioni' %}active{% endif %}" href="{% url 'ui:locations' %}">Ubicazioni</a>{% endif %}
+</nav>

@@ -1,0 +1,59 @@
+{% extends 'interfaccia/base.html' %}
+{% block title %}Prelievo {{ session.lotto_codice }} · MIRA{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'ui:simple_session' session.pk %}">← Produzione {{ session.lotto_codice }}</a>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ session.get_tipo_display|upper }} / PRELIEVO COMPLESSIVO</p>
+    <h1>Materiali per {{ session.batch_previsti }} batch</h1>
+    <p class="muted">La proposta segue il criterio FIFO/FEFO. Prima della conferma puoi cambiare lotto, posizione e quantità.</p>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Fabbisogno da ricetta</h2><span class="counter">{{ requirements|length }} ingredienti</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ingrediente</th><th>Criterio</th><th class="number">Quantità per {{ session.batch_previsti }} batch</th><th class="number">Mancante</th></tr></thead>
+      <tbody>
+        {% for row in requirements %}
+          <tr>
+            <td><strong>{{ row.articolo.descrizione }}</strong><small>{{ row.articolo.codice }}</small></td>
+            <td><span class="pill neutral">{{ row.criterio }}</span></td>
+            <td class="number"><strong>{{ row.quantita|floatformat:'-6' }} {{ row.articolo.unita_misura }}</strong></td>
+            <td class="number">{% if row.mancante %}<span class="pill amber">{{ row.mancante|floatformat:'-6' }} {{ row.articolo.unita_misura }}</span>{% else %}—{% endif %}</td>
+          </tr>
+        {% empty %}<tr><td colspan="4" class="empty">La ricetta non contiene ingredienti.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if already_recorded %}
+  <div class="notice space-top">Il prelievo complessivo di questa produzione è già stato registrato.</div>
+{% else %}
+  {% if not proposal_complete %}<div class="notice warning space-top">La disponibilità non copre tutto il fabbisogno. Carica o rettifica il materiale mancante prima di confermare.</div>{% endif %}
+  {% if error %}<div class="notice error space-top">{{ error }}</div>{% endif %}
+  <form method="post" class="space-top">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {{ formset.non_form_errors }}
+    {% for form in formset %}
+      <section class="panel ingredient-panel">
+        {{ form.articolo }}
+        <div class="form-grid">
+          <div class="field wide"><label for="{{ form.giacenza.id_for_label }}">{{ form.giacenza.label }}</label>{{ form.giacenza }}{{ form.giacenza.errors }}</div>
+          <div class="field"><label for="{{ form.quantita_kg.id_for_label }}">{{ form.quantita_kg.label }}</label>{{ form.quantita_kg }}{{ form.quantita_kg.errors }}</div>
+          <div class="field"><label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>{{ form.note }}{{ form.note.errors }}</div>
+        </div>
+      </section>
+    {% empty %}
+      <div class="notice warning">Non ci sono giacenze da proporre.</div>
+    {% endfor %}
+    <div class="form-footer">
+      <a class="button secondary" href="{% url 'ui:simple_session' session.pk %}">Annulla</a>
+      <button class="button primary" type="submit" {% if not proposal_complete or not formset.forms %}disabled{% endif %}>Conferma tutti i prelievi</button>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

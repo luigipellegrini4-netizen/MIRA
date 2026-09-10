@@ -1,0 +1,65 @@
+{% extends 'interfaccia/base.html' %}{% block title %}{{ session.lotto_codice }} · MIRA{% endblock %}{% block content %}
+<a class="back" href="{% url 'ui:simple_sessions' %}">← Produzione</a><div class="page-head"><div><p class="eyebrow">{{ session.get_tipo_display }}</p><h1>{{ session.lotto_codice }}</h1><p>{{ session.ricetta.articolo }}{% if session.postazione %} · {{ session.postazione.risorsa.nome }}{% endif %}{% if session.lotto_origine %} · origine <a href="{% url 'ui:simple_session' session.lotto_origine.pk %}">{{ session.lotto_origine }}</a>{% endif %}</p></div>{% if session.stato == 'APERTA' %}<div>{% if session.tipo == 'ROBOQBO' and not session.prelievo_ricetta_registrato %}<a class="button secondary" href="{% url 'ui:simple_picking' session.pk %}">Prelievo materiali</a>{% elif session.tipo == 'SEMILAVORATO' and not session.prelievo_ricetta_registrato %}<a class="button secondary" href="{% url 'ui:simple_picking' session.pk %}">Prelievo materiali</a>{% endif %}{% if session.tipo != 'SEMILAVORATO' %} <a class="button secondary" href="{% url 'ui:simple_control' session.pk %}">Controllo</a>{% endif %} <a class="button secondary" href="{% url 'ui:simple_nc' session.pk %}">Apri NC</a> <a class="button primary" href="{% url 'ui:simple_close' session.pk %}">Chiudi</a></div>{% endif %}</div>
+{% if session.stato == 'PIANIFICATA' %}<div class="notice"><strong>Produzione non ancora iniziata.</strong><div class="actions space-top"><a class="button primary" href="{% url 'ui:simple_lifecycle' session.pk 'avvia' %}">Avvia produzione</a>{% if perms.auth.can_cancel_unstarted_work %} <a class="button secondary danger" href="{% url 'ui:simple_lifecycle' session.pk 'annulla' %}">Annulla produzione</a>{% endif %}</div></div>{% endif %}
+<div class="stats"><div class="stat"><span>Stato</span><strong>{{ session.get_stato_display }}</strong></div><div class="stat"><span>Materie iniziali in peso</span><strong>{{ session.quantita_iniziale_kg }} kg</strong></div><div class="stat"><span>Controlli</span><strong>{{ controls|length }}</strong></div><div class="stat"><span>NC</span><strong>{{ nc_count }}</strong></div></div>
+{% if session.tipo == 'SEMILAVORATO' %}<div class="notice">Batch previsti: <strong>{{ session.numero_lavorazioni_previste }}</strong>.{% if session.quantita_finale_kg %} Quantità finale: <strong>{{ session.quantita_finale_kg }} kg</strong>. Resa: <strong>{% widthratio session.quantita_finale_kg session.quantita_iniziale_kg 100 %}%</strong>.{% endif %}</div>{% endif %}
+{% if forecast %}<section class="panel"><div class="panel-head"><div><h2>Previsione complessiva</h2><small>Non prenota e non consuma materiale.</small></div></div><div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Articolo</th><th class="number">Quantità prevista</th></tr></thead><tbody>{% for article, quantity in forecast %}<tr><td>{{ article.descrizione }}</td><td>{{ article.codice }}</td><td class="number"><strong>{{ quantity }}</strong> {{ article.unita_misura }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+{% if picks %}<section class="panel"><div class="panel-head"><div><h2>Prelievi effettivi</h2><small>Le quantità restano separate per unità di misura.</small></div><div class="actions">{% for total in input_totals %}<span class="pill neutral">{{ total.quantita|floatformat:'-6' }} {{ total.unita }}</span>{% endfor %}</div></div><div class="table-wrap"><table><thead><tr><th>Batch</th><th>Articolo</th><th>Lotto</th><th class="number">Quantità</th><th>Ora</th></tr></thead><tbody>{% for p in picks %}<tr><td>{{ p.numero_batch|default:'—' }}</td><td>{{ p.lotto.articolo }}</td><td>{{ p.lotto.codice_lotto }}</td><td class="number"><strong>{{ p.quantita_kg|floatformat:'-6' }} {{ p.lotto.articolo.unita_misura }}</strong></td><td>{{ p.registrato_il|date:'d/m H:i' }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+{% if batch_formset %}
+<section class="panel">
+  <div class="panel-head"><div><h2>Controlli dei batch previsti</h2><small>Inserisci soltanto gli orari e l’esito del tracciato termico.</small></div><span class="counter">{{ session.numero_batch_previsti }} batch</span></div>
+  <form method="post" action="{% url 'ui:simple_batch_controls' session.pk %}">
+    {% csrf_token %}{{ batch_formset.management_form }}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Batch</th><th>Ora inizio</th><th>Ora fine</th><th>Tracciato 82 °C × 60 secondi</th></tr></thead>
+        <tbody>
+          {% for form in batch_formset %}
+            <tr>
+              <td><strong>Batch {{ form.numero.value }}</strong>{{ form.numero }}{{ form.numero.errors }}</td>
+              <td>{{ form.inizio }}{{ form.inizio.errors }}</td>
+              <td>{{ form.fine }}{{ form.fine.errors }}</td>
+              <td>{{ form.esito_tracciato_termico }}{{ form.esito_tracciato_termico.errors }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-footer batch-control-footer"><button class="button primary" type="submit">Salva controlli batch</button></div>
+  </form>
+</section>
+{% endif %}
+<section class="panel {% if batch_formset %}space-top{% endif %}">
+  <div class="panel-head"><h2>{% if batch_formset %}Controlli tank e aggiuntivi{% else %}Controlli{% endif %}</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tipo</th><th>N.</th><th>Inizio</th><th>Fine</th><th>Tracciato 82 °C × 60 s</th><th>°Brix</th><th>pH</th><th>2ª pastorizzazione</th><th>Shock termico e vuoto</th><th>Esito</th></tr></thead>
+      <tbody>
+        {% for c in displayed_controls %}
+          <tr>
+            <td><strong>{{ c.get_tipo_display }}</strong></td>
+            <td>{{ c.numero }}</td>
+            <td>{{ c.inizio|date:'H:i'|default:'—' }}</td>
+            <td>{{ c.fine|date:'H:i'|default:'—' }}</td>
+            <td>{{ c.esito_tracciato_termico|default:'—' }}</td>
+            <td>{% if c.gradi_brix != None %}{{ c.gradi_brix|floatformat:'-3' }}{% else %}—{% endif %}</td>
+            <td>{% if c.ph != None %}{{ c.ph|floatformat:'-3' }}{% else %}—{% endif %}</td>
+            <td>{{ c.esito_pastorizzazione|default:'—' }}</td>
+            <td>{{ c.esito_shock_vuoto|default:'—' }}</td>
+            <td><span class="pill {% if not c.conforme %}amber{% endif %}">{% if c.conforme %}C{% else %}NC{% endif %}</span></td>
+          </tr>
+        {% empty %}<tr><td colspan="10" class="empty">{% if batch_formset %}Nessun controllo tank o batch aggiuntivo registrato.{% else %}Nessun controllo registrato.{% endif %}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% if ncs %}<section class="panel"><div class="panel-head"><h2>Non conformità</h2></div><div class="panel-body">{% for n in ncs %}<p><strong>NC {{ n.pk }} · {{ n.get_stato_display }}</strong><br>{{ n.descrizione }}</p>{% endfor %}</div></section>{% endif %}
+{% if session.riepilogo_finale %}<section class="panel"><div class="panel-head"><h2>Riepilogo finale</h2></div><div class="panel-body"><p>Buoni {{ session.riepilogo_finale.vasetti_buoni }} · Scarti {{ session.riepilogo_finale.vasetti_scartati }} · Quarantena {{ session.riepilogo_finale.vasetti_quarantena }}</p><p><strong>Quantità finale {{ session.riepilogo_finale.quantita_finale_kg|floatformat:3 }} kg · Resa {{ session.riepilogo_finale.resa_percentuale|floatformat:2 }}%</strong></p></div></section>{% endif %}
+{% if session.stato == 'APERTA' and session.tipo == 'INVASETTAMENTO' or session.stato == 'APERTA' and session.prelievo_ricetta_registrato %}
+<section class="panel panel-body space-top">
+  <h2>Serve altro materiale?</h2>
+  <p class="muted">Registra integrazioni durante il processo oppure i materiali finali, come vasetti e capsule.</p>
+  <a class="button secondary" href="{% url 'ui:simple_additional_picking' session.pk %}">+ Registra un altro prelievo</a>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,8 @@
+<div class="tabs" aria-label="Sezioni del magazzino">
+    {% if perms.magazzino.view_giacenza %}<a class="{% if warehouse_tab == 'giacenze' %}selected{% endif %}" href="{% url 'ui:magazzino' %}">Giacenze</a>{% endif %}
+    {% if perms.magazzino.view_movimento %}<a class="{% if warehouse_tab == 'movimenti' %}selected{% endif %}" href="{% url 'ui:movimenti' %}">Movimenti</a>{% endif %}
+    {% if perms.auth.can_transfer_stock %}<a class="{% if warehouse_tab == 'trasferimento' %}selected{% endif %}" href="{% url 'ui:operation' 'trasferimento' %}">Trasferisci</a>{% endif %}
+    {% if perms.auth.can_adjust_inventory %}<a class="{% if warehouse_tab == 'rettifica' %}selected{% endif %}" href="{% url 'ui:operation' 'rettifica' %}">Rettifica</a>{% endif %}
+    {% if perms.magazzino.view_ricevimentolotto %}<a href="{% url 'ui:download_csv' 'ricevimenti' %}">Scarica ricevimenti CSV</a>{% endif %}
+    {% if perms.auth.can_receive_goods %}<a href="{% url 'ui:manage_csv' %}?tipo=ricevimenti">Carica ricevimenti CSV</a>{% endif %}
+</div>

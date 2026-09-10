@@ -1,0 +1,29 @@
+{% extends 'interfaccia/base.html' %}
+{% block breadcrumb %}Qualità{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><p class="eyebrow">SEGNALAZIONI E PRODUZIONE</p><h1>Qualità</h1><p class="muted">Tutte le non conformità, comprese quelle registrate durante la produzione.</p></div>
+  {% if perms.auth.can_open_nc %}<a class="button primary" href="{% url 'ui:operation' 'nc_apri' %}">+ Apri non conformità</a>{% endif %}
+</div>
+<section class="panel">
+  {% include 'interfaccia/search.html' %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Numero / Data</th><th>Segnalazione</th><th>Origine</th><th>Lotto produzione</th><th>Stato</th><th></th></tr></thead>
+      <tbody>
+        {% for case in page %}
+          <tr>
+            <td><strong>NC {{ case.numero }}</strong><small>{{ case.data|date:'d/m/Y H:i' }}</small></td>
+            <td>{{ case.descrizione|truncatechars:110 }}</td>
+            <td>{{ case.origine }}</td>
+            <td>{{ case.lotto|default:'—' }}</td>
+            <td><span class="pill {{ case.stato }}">{{ case.stato_label }}</span></td>
+            <td><a href="{{ case.url }}">Apri →</a></td>
+          </tr>
+        {% empty %}<tr><td colspan="6" class="empty">Nessuna non conformità trovata.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'interfaccia/pagination.html' %}
+</section>
+{% endblock %}

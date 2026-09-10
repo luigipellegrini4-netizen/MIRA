@@ -1,0 +1,5 @@
+{% extends 'interfaccia/base.html' %}{% block title %}{{ title }} · MIRA{% endblock %}{% block content %}
+<a class="back" href="{% url 'ui:simple_sessions' %}">← Produzione</a>
+<div class="page-head"><div><p class="eyebrow">PRODUZIONE SEMPLIFICATA</p><h1>{{ title }}</h1></div></div>
+<section class="panel form-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="form-footer"><a class="button secondary" href="{% url 'ui:simple_sessions' %}">Annulla</a><button class="button primary" type="submit">Registra</button></div></form></section>
+{% endblock %}

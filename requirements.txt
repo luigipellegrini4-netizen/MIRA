@@ -1,0 +1,3 @@
+# Versioni rilevate negli ambienti locali esistenti.
+Django==6.1
+mysqlclient==2.2.8

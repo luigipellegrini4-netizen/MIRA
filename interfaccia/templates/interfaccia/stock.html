@@ -1,0 +1,48 @@
+{% extends 'interfaccia/base.html' %}
+{% block breadcrumb %}Magazzino{% endblock %}
+{% block content %}
+<div class="page-head">
+    <div><p class="eyebrow">MERCE E POSIZIONI</p><h1>Magazzino</h1><p class="muted">Giacenze raggruppate prima per categoria e poi per articolo.</p></div>
+    <div class="actions">{% if perms.auth.can_receive_goods %}<a class="button primary" href="{% url 'ui:operation' 'ricevimento' %}">+ Ricevi merce</a>{% endif %}</div>
+</div>
+{% include 'interfaccia/warehouse_tabs.html' %}
+<section class="panel">
+    {% include 'interfaccia/search.html' %}
+    {% regroup stocks by lotto.articolo.categoria as categorie %}
+    <div class="stock-locations">
+        {% for categoria in categorie %}
+        <details class="stock-location-section" {% if q %}open{% endif %}>
+            <summary>
+                <span class="location-mark" aria-hidden="true">▤</span>
+                <span class="location-title"><strong>{{ categoria.grouper.nome }}</strong><small>Categoria {{ categoria.grouper.codice }}</small></span>
+                <span class="location-count">{{ categoria.list|length }} lotti/posizioni</span>
+                <span class="location-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            {% regroup categoria.list by lotto.articolo as articoli %}
+            <div class="stock-locations">
+                {% for articolo in articoli %}
+                <details class="stock-location-section" {% if q %}open{% endif %}>
+                    <summary>
+                        <span class="location-mark" aria-hidden="true">▦</span>
+                        <span class="location-title"><strong>{{ articolo.grouper.descrizione }}</strong><small>{{ articolo.grouper.codice }} · {{ articolo.grouper.unita_misura }}</small></span>
+                        <span class="location-count">{{ articolo.list|length }} lotti/posizioni</span>
+                        <span class="location-chevron" aria-hidden="true">⌄</span>
+                    </summary>
+                    <div class="table-wrap"><table class="stock-table">
+                        <thead><tr><th>Lotto</th><th>Ubicazione</th><th>Scaffale e piano</th><th>Scadenza</th><th class="number">Giacenza</th></tr></thead>
+                        <tbody>{% for stock in articolo.list %}<tr>
+                            <td><a href="{% url 'ui:lot' stock.lotto_id %}">{{ stock.lotto.codice_lotto }} ↗</a>{% if perms.auth.can_adjust_inventory %}<small><a href="{% url 'ui:lot_edit' stock.lotto_id %}">Modifica</a></small>{% endif %}</td>
+                            <td><strong>{{ stock.ubicazione.nome }}</strong><small>{{ stock.ubicazione.codice }}</small></td>
+                            <td>{% if stock.scaffale or stock.piano %}<strong>Scaffale {{ stock.scaffale|default:'—' }}</strong><small>Piano {{ stock.piano|default:'—' }}</small>{% else %}<span class="muted">Non specificati</span>{% endif %}</td>
+                            <td>{{ stock.lotto.data_scadenza|date:'d/m/Y'|default:'—' }}</td>
+                            <td class="number"><strong>{{ stock.quantita|floatformat:'-6' }}</strong> {{ stock.lotto.articolo.unita_misura }}</td>
+                        </tr>{% endfor %}</tbody>
+                    </table></div>
+                </details>
+                {% endfor %}
+            </div>
+        </details>
+        {% empty %}<div class="empty">Nessuna giacenza trovata. Registra un ricevimento o modifica la ricerca.</div>{% endfor %}
+    </div>
+</section>
+{% endblock %}

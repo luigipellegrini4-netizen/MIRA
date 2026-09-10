@@ -1,0 +1,53 @@
+{% extends 'interfaccia/base.html' %}
+{% block title %}Produzione · MIRA{% endblock %}
+{% block content %}
+<div class="page-head production-heading">
+  <div><p class="eyebrow">PRODUZIONE</p><h1>Produzione</h1><p class="muted">Apri un modulo per iniziare una nuova produzione o consulta lo storico.</p></div>
+</div>
+
+<nav class="production-launchers" aria-label="Avvio produzione">
+  {% for group in production_groups %}
+    <a class="production-launcher" href="{% url group.new_url %}">
+      <span class="production-marker">{{ group.marker }}</span>
+      <span><strong>Nuova produzione<br>{{ group.name }}</strong><small>{{ group.description }}</small></span>
+      <span class="production-arrow" aria-hidden="true">＋</span>
+    </a>
+  {% endfor %}
+</nav>
+
+<div class="production-groups">
+{% for group in production_groups %}
+  <details class="panel production-group"{% if group.active_count %} open{% endif %}>
+    <summary class="production-summary">
+      <span class="production-summary-title"><span class="production-marker small">{{ group.marker }}</span><span><strong>{{ group.name }}</strong><small>{{ group.description }}</small></span></span>
+      <span class="production-summary-meta">
+        {% if group.active_count %}<span class="pill IN_CORSO">{{ group.active_count }} attive</span>{% endif %}
+        <span class="counter">{{ group.count }} totali</span><span class="summary-chevron" aria-hidden="true">⌄</span>
+      </span>
+    </summary>
+    <div class="production-group-body">
+      <div class="production-group-actions"><a class="button secondary" href="{% url group.new_url %}">+ Nuova {{ group.name|lower }}</a></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Lotto</th><th>Articolo</th><th>Origine</th><th>Stato</th><th>Apertura</th><th></th></tr></thead>
+          <tbody>
+            {% for s in group.sessions %}
+              <tr>
+                <td><strong>{{ s.lotto_codice }}</strong></td>
+                <td>{{ s.ricetta.articolo }}</td>
+                <td>{% if s.lotto_origine %}<a href="{% url 'ui:simple_session' s.lotto_origine_id %}">{{ s.lotto_origine }}</a>{% else %}—{% endif %}</td>
+                <td><span class="pill {{ s.stato }}">{{ s.get_stato_display }}</span></td>
+                <td>{{ s.aperta_il|date:'d/m/Y H:i' }}</td>
+                <td><a class="session-open-link" href="{% url 'ui:simple_session' s.pk %}">Apri produzione <span aria-hidden="true">→</span></a></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="empty">Nessuna produzione {{ group.name|lower }} registrata.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+{% endfor %}
+</div>
+{% endblock %}

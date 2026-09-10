@@ -1,0 +1,66 @@
+{% extends 'interfaccia/base.html' %}
+{% block content %}
+<a class="back" href="{% url 'ui:qualita' %}">← Qualità</a>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">NC DI PRODUZIONE · {{ case.aperta_il|date:'d/m/Y H:i' }}</p>
+    <h1>Non conformità P-{{ case.pk }}</h1>
+    <p class="muted">Aperta da {{ case.aperta_da.username }}</p>
+  </div>
+  <span class="pill {{ case.stato }}">{{ case.get_stato_display }}</span>
+</div>
+<div class="actions work-actions">
+  {% if case.stato == 'APERTA' and perms.auth.can_manage_nc %}
+    <a class="button primary" href="{% url 'ui:simple_case_operation' case.pk 'prendi-in-carico' %}">Prendi in gestione</a>
+  {% elif case.stato == 'IN_GESTIONE' %}
+    {% if perms.auth.can_manage_nc %}<a class="button primary" href="{% url 'ui:simple_case_operation' case.pk 'azione' %}">Registra azione</a>{% endif %}
+    {% if perms.auth.can_verify_nc %}<a class="button secondary" href="{% url 'ui:simple_case_operation' case.pk 'verifica' %}">Verifica efficacia</a>{% endif %}
+    {% if perms.auth.can_close_nc %}<a class="button secondary" href="{% url 'ui:simple_case_operation' case.pk 'chiudi' %}">Chiudi NC</a>{% endif %}
+  {% endif %}
+</div>
+<section class="panel panel-body">
+  <h2>Segnalazione</h2>
+  <p>{{ case.descrizione|linebreaksbr }}</p>
+  {% if case.quantita_coinvolta_kg %}<p><strong>Quantità coinvolta:</strong> {{ case.quantita_coinvolta_kg|floatformat:'-6' }} kg</p>{% endif %}
+  {% if case.vasetti_coinvolti %}<p><strong>Vasetti coinvolti:</strong> {{ case.vasetti_coinvolti }}</p>{% endif %}
+  {% if case.note %}<p><strong>Note:</strong><br>{{ case.note|linebreaksbr }}</p>{% endif %}
+</section>
+<div class="two-columns space-top">
+  <section class="panel panel-body">
+    <p class="eyebrow">PRODUZIONE COLLEGATA</p>
+    <h2>{{ case.sessione.lotto_codice }}</h2>
+    <p>{{ case.sessione.get_tipo_display }} · {{ case.sessione.ricetta.articolo }}</p>
+    <a href="{% url 'ui:simple_session' case.sessione_id %}">Apri produzione →</a>
+  </section>
+  <section class="panel panel-body">
+    <p class="eyebrow">LOTTO PRODOTTO</p>
+    {% if case.sessione.lotto_prodotto %}
+      <h2>{{ case.sessione.lotto_prodotto.codice_lotto }}</h2>
+      <a href="{% url 'ui:lot' case.sessione.lotto_prodotto_id %}">Apri tracciabilità →</a>
+    {% else %}
+      <h2>{{ case.sessione.lotto_codice }}</h2>
+      <p class="muted">Il lotto sarà creato alla chiusura della produzione.</p>
+    {% endif %}
+  </section>
+</div>
+{% if case.controllo %}
+  <section class="panel panel-body space-top">
+    <p class="eyebrow">CONTROLLO COLLEGATO</p>
+    <h2>{{ case.controllo.get_tipo_display }} {{ case.controllo.numero }}</h2>
+    <p>Esito: <strong>{% if case.controllo.conforme %}C{% else %}NC{% endif %}</strong></p>
+  </section>
+{% endif %}
+{% if case.presa_in_carico_da %}
+  <p class="muted space-top">In gestione da {{ case.presa_in_carico_da.username }} dal {{ case.presa_in_carico_il|date:'d/m/Y H:i' }}.</p>
+{% endif %}
+<div class="two-columns space-top">
+  <section class="panel">
+    <div class="panel-head"><h2>Azioni registrate</h2></div>
+    {% for action in actions %}<div class="timeline-item"><small>{{ action.registrata_il|date:'d/m/Y H:i' }} · {{ action.registrata_da.username }}</small><p>{{ action.descrizione|linebreaksbr }}</p>{% if action.note %}<small>{{ action.note }}</small>{% endif %}</div>{% empty %}<div class="empty">Nessuna azione registrata.</div>{% endfor %}
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Verifiche</h2></div>
+    {% for verification in verifications %}<div class="timeline-item"><small>{{ verification.verificata_il|date:'d/m/Y H:i' }} · {{ verification.verificata_da.username }}</small><h3>{{ verification.get_esito_display }}</h3><p>{{ verification.descrizione|linebreaksbr }}</p></div>{% empty %}<div class="empty">Nessuna verifica registrata.</div>{% endfor %}
+  </section>
+</div>
+{% endblock %}

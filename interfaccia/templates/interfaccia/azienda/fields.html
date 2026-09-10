@@ -1,0 +1,2 @@
+{{ form.non_field_errors }}{% for hidden in form.hidden_fields %}{{ hidden }}{{ hidden.errors }}{% endfor %}
+<div class="form-grid">{% for field in form.visible_fields %}<div class="field {% if field.name == 'materiali' or field.name == 'confermato' %}wide{% endif %}><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}</div>

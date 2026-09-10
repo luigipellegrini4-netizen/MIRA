@@ -1,0 +1,114 @@
+{% extends 'interfaccia/base.html' %}
+{% block content %}
+<a class="back" href="{% url 'ui:magazzino' %}">← Magazzino</a>
+<div class="page-head">
+  <div><p class="eyebrow">TRACCIABILITÀ / LOTTO #{{ lot.pk }}</p><h1>{{ lot.codice_lotto }}</h1><p class="muted">{{ lot.articolo.descrizione }} · {{ lot.articolo.unita_misura }}</p></div>
+  <span class="pill neutral">{{ lot.get_tipo_display }}</span>
+</div>
+<div class="workflow">
+  <div><small>FORNITORE</small><strong>{{ lot.fornitore.ragione_sociale|default:'Produzione interna' }}</strong></div>
+  <div><small>SCADENZA</small><strong>{{ lot.data_scadenza|date:'d/m/Y'|default:'Non indicata' }}</strong></div>
+  <div><small>CRITERIO</small><strong>{{ lot.articolo.criterio_rotazione }}</strong></div>
+</div>
+<section class="panel space-top">
+  <div class="panel-head"><h2>Posizioni del lotto</h2></div>
+  {% for stock in stocks %}
+    <div class="list-row"><span>{{ stock.ubicazione.nome }} · {{ stock.scaffale }} {{ stock.piano }}</span><strong>{{ stock.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
+  {% empty %}<div class="empty">Nessuna giacenza consultabile.</div>{% endfor %}
+</section>
+{% if graph %}
+  <section class="trace-header space-top">
+    <div>
+      <p class="eyebrow">PERCORSO DEL MATERIALE</p>
+      <h2>{% if direction == 'MONTE' %}Tracciabilità a monte{% else %}Tracciabilità a valle{% endif %}</h2>
+      <p>{% if direction == 'MONTE' %}Da quali lotti e produzioni deriva questo lotto.{% else %}In quali produzioni e lotti è stato utilizzato questo lotto.{% endif %}</p>
+    </div>
+    <nav class="trace-switch" aria-label="Direzione della tracciabilità">
+      <a class="{% if direction == 'MONTE' %}selected{% endif %}" href="?direzione=MONTE"><span>←</span><strong>A monte</strong><small>Origini</small></a>
+      <a class="{% if direction == 'VALLE' %}selected{% endif %}" href="?direzione=VALLE"><span>→</span><strong>A valle</strong><small>Utilizzi</small></a>
+    </nav>
+  </section>
+  {% if graph.troncato %}<div class="notice warning">Il percorso supera il limite di visualizzazione. Apri uno dei lotti per proseguire.</div>{% endif %}
+
+  <section class="panel trace-panel space-top">
+    <div class="panel-head">
+      <div><h2>Genealogia del lotto</h2><small>Ogni elemento compare una sola volta. Clicca un lotto o una produzione per aprirlo.</small></div>
+      <span class="counter">{{ graph.lotti|length }} lotti</span>
+    </div>
+    <div class="trace-map">
+      {% for level in graph.trace_levels %}
+        <div class="trace-level">
+          <span class="trace-level-title">
+            {% if direction == 'MONTE' and forloop.first %}Origini
+            {% elif direction == 'VALLE' and forloop.first %}Lotto selezionato
+            {% elif direction == 'MONTE' and forloop.last %}Lotto selezionato
+            {% elif direction == 'VALLE' and forloop.last %}Destinazioni
+            {% else %}Passaggio {{ forloop.counter }}{% endif %}
+          </span>
+          <div class="trace-level-nodes">
+            {% for node in level %}
+              <article class="trace-card {% if node.corrente %}current{% elif node.tipo == 'Produzione' %}process{% endif %}">
+                <span class="trace-kind">{% if node.corrente %}Lotto selezionato{% else %}{{ node.tipo }}{% endif %}</span>
+                {% if node.url %}<a href="{{ node.url }}">{{ node.titolo }}</a>{% else %}<strong>{{ node.titolo }}</strong>{% endif %}
+                <small>{{ node.sottotitolo }}</small>
+                {% if node.scadenza %}<small>Scadenza {{ node.scadenza }}</small>{% endif %}
+                {% if node.quantita %}<span class="trace-quantity">{{ node.quantita|floatformat:'-6' }} {{ node.unita_misura }}</span>{% endif %}
+                {% if node.movimenti %}<small>Movimento {{ node.movimenti|join:', ' }}</small>{% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        </div>
+        {% if not forloop.last %}<div class="trace-map-arrow" aria-hidden="true"><span>→</span></div>{% endif %}
+      {% empty %}
+        <div class="empty"><span>◇</span><h3>Nessun collegamento trovato</h3><p>{% if direction == 'MONTE' %}Questo lotto non ha origini produttive registrate.{% else %}Questo lotto non risulta ancora utilizzato in altre produzioni.{% endif %}</p></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if graph.prelievi_sessione %}
+    <section class="panel space-top">
+      <div class="panel-head"><div><h2>Materiali prelevati</h2><small>Comprende ingredienti da ricetta e materiali aggiuntivi, inclusi i MOCA.</small></div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Articolo</th><th>Lotto</th><th>Tipo prelievo</th><th class="number">Quantità</th><th>Movimento</th></tr></thead>
+          <tbody>
+            {% for pick in graph.prelievi_sessione %}
+              <tr>
+                <td><strong>{{ pick.lotto.sottotitolo }}</strong></td>
+                <td><a href="{{ pick.lotto.url }}">{{ pick.lotto.titolo }}</a></td>
+                <td>{% if pick.da_ricetta %}<span class="pill neutral">Ricetta</span>{% else %}<span class="pill">Aggiuntivo</span>{% endif %}</td>
+                <td class="number"><strong>{{ pick.quantita|floatformat:'-6' }} {{ pick.unita_misura }}</strong></td>
+                <td>{% if pick.movimenti_ids %}#{{ pick.movimenti_ids|join:', ' }}{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if graph.non_conformita_semplificate %}
+    <section class="panel space-top">
+      <div class="panel-head"><div><h2>Non conformità di produzione</h2><small>Segnalazioni collegate alla produzione che ha generato o utilizzato il lotto.</small></div><span class="counter">{{ graph.non_conformita_semplificate|length }}</span></div>
+      {% for nc in graph.non_conformita_semplificate %}
+        <a class="list-row" href="{% url 'ui:simple_case' nc.id %}">
+          <span><strong>NC P-{{ nc.id }} · {{ nc.descrizione|truncatechars:90 }}</strong><small>{% if nc.controllo %}{{ nc.controllo }}{% else %}Produzione{% endif %}</small></span>
+          <span class="pill {{ nc.stato }}">{{ nc.stato }}</span>
+        </a>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  {% if graph.sessioni_semplificate or graph.lavorazioni %}
+    <section class="panel space-top">
+      <div class="panel-head"><h2>Produzioni coinvolte</h2></div>
+      {% for s in graph.sessioni_semplificate %}
+        <a class="list-row" href="{% url 'ui:simple_session' s.id %}"><span><strong>{{ s.lotto_codice }}</strong><small>{{ s.tipo }} · {{ s.articolo_codice }}</small></span><span class="pill {{ s.stato }}">{{ s.stato }}</span></a>
+      {% endfor %}
+      {% for w in graph.lavorazioni %}
+        <div class="list-row"><span><strong>Lavorazione storica #{{ w.id }}</strong><small>{{ w.tipo_codice }}</small></span><span class="pill {{ w.stato }}">{{ w.stato }}</span></div>
+      {% endfor %}
+    </section>
+  {% endif %}
+{% endif %}
+{% endblock %}

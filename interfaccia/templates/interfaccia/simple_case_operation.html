@@ -1,0 +1,11 @@
+{% extends 'interfaccia/base.html' %}
+{% block title %}{{ title }} · MIRA{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'ui:simple_case' case.pk %}">← Non conformità P-{{ case.pk }}</a>
+<div class="page-head"><div><p class="eyebrow">GESTIONE QUALITÀ</p><h1>{{ title }}</h1><p class="muted">NC P-{{ case.pk }} · lotto {{ case.sessione.lotto_codice }}</p></div></div>
+<section class="panel form-panel">
+  <form method="post" data-submit-once>{% csrf_token %}{{ form.as_p }}
+    <div class="form-footer"><a class="button secondary" href="{% url 'ui:simple_case' case.pk %}">Annulla</a><button class="button primary" type="submit">Conferma</button></div>
+  </form>
+</section>
+{% endblock %}
