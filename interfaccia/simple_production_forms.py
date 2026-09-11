@@ -309,6 +309,7 @@ class SummaryForm(forms.Form):
             self.fields[f"{prefix}_giacenza"] = forms.ModelChoiceField(
                 queryset=stocks, label=f"Lotto e posizione {label.lower()}",
                 widget=StockByArticleSelect(attrs={"data-stock-for": prefix}),
+                help_text=f"Prima scegli il tipo di {label.lower()}: saranno mostrati soltanto i suoi lotti disponibili.",
             )
             self.fields[f"{prefix}_giacenza"].label_from_instance = stock_label
 

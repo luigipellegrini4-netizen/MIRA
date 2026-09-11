@@ -41,16 +41,20 @@ document.querySelectorAll('[data-stock-article]').forEach(articleSelector => {
   const key = articleSelector.dataset.stockArticle;
   const stockSelector = articleSelector.form.querySelector(`[data-stock-for="${key}"]`);
   if (!stockSelector) return;
+  const allOptions = Array.from(stockSelector.options).map(option => option.cloneNode(true));
   const updateStocks = () => {
     const articleId = articleSelector.value;
-    let selectedIsVisible = false;
-    Array.from(stockSelector.options).forEach(option => {
-      const visible = !option.value || option.dataset.article === articleId;
-      option.hidden = !visible;
-      option.disabled = !visible;
-      if (visible && option.selected) selectedIsVisible = true;
-    });
-    if (!selectedIsVisible) stockSelector.value = '';
+    const previousValue = stockSelector.value;
+    const options = allOptions
+      .filter(option => !option.value || option.dataset.article === articleId)
+      .map(option => option.cloneNode(true));
+    stockSelector.replaceChildren(...options);
+    stockSelector.disabled = !articleId;
+    if (articleId && options.some(option => option.value === previousValue)) {
+      stockSelector.value = previousValue;
+    } else {
+      stockSelector.value = '';
+    }
   };
   articleSelector.addEventListener('change', updateStocks);
   updateStocks();
