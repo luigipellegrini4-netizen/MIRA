@@ -24,7 +24,7 @@ document.querySelectorAll('[data-control-type]').forEach(selector => {
   const number = form.querySelector('[data-control-number]');
   const updateControlFields = changeNumber => {
     form.querySelectorAll('[data-control-for]').forEach(input => {
-      const visible = input.dataset.controlFor === selector.value;
+      const visible = input.dataset.controlFor.split(',').includes(selector.value);
       const container = input.closest('p') || input.closest('.field');
       if (container) container.hidden = !visible;
       input.disabled = !visible;

@@ -242,8 +242,6 @@ def additional_picking(request, pk):
 @require_http_methods(["GET", "POST"])
 def control(request, pk):
     obj = get_object_or_404(SessioneProduzioneSemplificata, pk=pk, stato="APERTA")
-    if obj.tipo == "SEMILAVORATO":
-        raise ValidationError("I semilavorati non prevedono controlli.")
     def execute(data):
         for field in ("inizio", "fine"):
             if data.get(field):

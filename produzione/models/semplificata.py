@@ -129,8 +129,40 @@ class PrelievoSessioneSemplificata(ValidatedModel):
             raise ValidationError("Il prelievo deve appartenere a una sessione produttiva valida.")
 
 
+class ConfigurazioneControlloSemplificato(ValidatedModel):
+    class Ambito(models.TextChoices):
+        SEMILAVORATO = "SEMILAVORATO", "Semilavorati"
+        ROBOQBO_BATCH = "ROBOQBO_BATCH", "RoboQbo · Batch"
+        ROBOQBO_TANK = "ROBOQBO_TANK", "RoboQbo · Tank"
+        INVASETTAMENTO_CARRELLO = "INVASETTAMENTO_CARRELLO", "Invasettamento · Carrello"
+
+    class Codice(models.TextChoices):
+        INIZIO = "INIZIO", "Ora di inizio"
+        FINE = "FINE", "Ora di fine"
+        TRACCIATO = "TRACCIATO", "Tracciato 82 °C × 60 s"
+        BRIX = "BRIX", "°Brix"
+        PH = "PH", "pH"
+        PASTORIZZAZIONE = "PASTORIZZAZIONE", "Pastorizzazione"
+        SHOCK_VUOTO = "SHOCK_VUOTO", "Shock termico e vuoto"
+
+    ambito = models.CharField(max_length=30, choices=Ambito.choices)
+    codice = models.CharField(max_length=20, choices=Codice.choices)
+    nome = models.CharField(max_length=100)
+    ordine = models.PositiveSmallIntegerField(default=10)
+    obbligatorio = models.BooleanField(default=True)
+    attivo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ambito", "ordine", "pk"]
+        constraints = [models.UniqueConstraint(fields=["ambito", "codice"], name="config_controllo_semplice_unica")]
+
+    def __str__(self):
+        return f"{self.get_ambito_display()} · {self.nome}"
+
+
 class ControlloSessioneSemplificata(ValidatedModel):
     class Tipo(models.TextChoices):
+        SEMILAVORATO = "SEMILAVORATO", "Semilavorato"
         BATCH = "BATCH", "Batch"
         TANK = "TANK", "Tank"
         CARRELLO = "CARRELLO", "Carrello"
@@ -141,7 +173,7 @@ class ControlloSessioneSemplificata(ValidatedModel):
         NA = "NA", "Non applicabile"
 
     sessione = models.ForeignKey(SessioneProduzioneSemplificata, on_delete=models.PROTECT, related_name="controlli")
-    tipo = models.CharField(max_length=10, choices=Tipo.choices)
+    tipo = models.CharField(max_length=15, choices=Tipo.choices)
     numero = models.PositiveIntegerField()
     inizio = models.DateTimeField(null=True, blank=True)
     fine = models.DateTimeField(null=True, blank=True)
@@ -162,6 +194,8 @@ class ControlloSessioneSemplificata(ValidatedModel):
                 condition=(
                     Q(tipo="BATCH", gradi_brix__isnull=True, ph__isnull=True,
                       esito_pastorizzazione="", esito_shock_vuoto="")
+                    | Q(tipo="SEMILAVORATO", inizio__isnull=True, fine__isnull=True,
+                        esito_tracciato_termico="", gradi_brix__isnull=True, ph__isnull=True)
                     | Q(tipo="TANK", inizio__isnull=True, fine__isnull=True,
                         esito_tracciato_termico="", esito_pastorizzazione="", esito_shock_vuoto="")
                     | Q(tipo="CARRELLO", inizio__isnull=True, fine__isnull=True,
@@ -195,10 +229,13 @@ class ControlloSessioneSemplificata(ValidatedModel):
             raise ValidationError("Batch e tank appartengono alla sessione RoboQbo.")
         if self.tipo == self.Tipo.CARRELLO and self.sessione_id and self.sessione.tipo != SessioneProduzioneSemplificata.Tipo.INVASETTAMENTO:
             raise ValidationError("I carrelli appartengono alla sessione di invasettamento.")
+        if self.tipo == self.Tipo.SEMILAVORATO and self.sessione_id and self.sessione.tipo != SessioneProduzioneSemplificata.Tipo.SEMILAVORATO:
+            raise ValidationError("Il controllo appartiene alla sessione Semilavorati.")
         fields_for_type = {
             self.Tipo.BATCH: ("gradi_brix", "ph", "esito_pastorizzazione", "esito_shock_vuoto"),
             self.Tipo.TANK: ("inizio", "fine", "esito_tracciato_termico", "esito_pastorizzazione", "esito_shock_vuoto"),
             self.Tipo.CARRELLO: ("inizio", "fine", "esito_tracciato_termico", "gradi_brix", "ph"),
+            self.Tipo.SEMILAVORATO: ("inizio", "fine", "esito_tracciato_termico", "gradi_brix", "ph"),
         }
         if any(getattr(self, field) not in (None, "") for field in fields_for_type.get(self.tipo, ())):
             raise ValidationError("Il controllo contiene valori non previsti per il tipo selezionato.")

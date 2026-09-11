@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from anagrafiche.models import Articolo, CategoriaArticolo, Ubicazione
 from magazzino.models import Giacenza
-from produzione.models import (ControlloSessioneSemplificata, Ricetta,
+from produzione.models import (ConfigurazioneControlloSemplificato, ControlloSessioneSemplificata, Ricetta,
                                SessioneProduzioneSemplificata)
 
 
@@ -152,9 +152,14 @@ class ControlForm(forms.Form):
 
     def __init__(self, *args, session, **kwargs):
         super().__init__(*args, **kwargs)
-        choices = ([('BATCH', 'Batch'), ('TANK', 'Tank')] if session.tipo == "ROBOQBO" else [('CARRELLO', 'Carrello')])
+        if session.tipo == "SEMILAVORATO":
+            choices = [("SEMILAVORATO", "Semilavorato")]
+        elif session.tipo == "ROBOQBO":
+            choices = [("BATCH", "Batch"), ("TANK", "Tank")]
+        else:
+            choices = [("CARRELLO", "Carrello")]
         self.fields["tipo"].choices = choices
-        initial_type = "TANK" if session.tipo == "ROBOQBO" else "CARRELLO"
+        initial_type = "TANK" if session.tipo == "ROBOQBO" else choices[0][0]
         self.fields["tipo"].initial = initial_type
         next_numbers = {}
         for control_type, _label in choices:
@@ -171,23 +176,38 @@ class ControlForm(forms.Form):
             f" / {control.fine.strftime('%H:%M') if control.fine else 'fine —'}"
             f" · {'C' if control.conforme else 'NC'}"
         )
-        field_types = {
-            "inizio": "BATCH",
-            "fine": "BATCH",
-            "esito_tracciato_termico": "BATCH",
-            "gradi_brix": "TANK",
-            "ph": "TANK",
-            "batch_associati": "TANK",
-            "esito_pastorizzazione": "CARRELLO",
-            "esito_shock_vuoto": "CARRELLO",
+        field_for_code = {
+            "INIZIO": "inizio", "FINE": "fine", "TRACCIATO": "esito_tracciato_termico",
+            "BRIX": "gradi_brix", "PH": "ph", "PASTORIZZAZIONE": "esito_pastorizzazione",
+            "SHOCK_VUOTO": "esito_shock_vuoto",
         }
-        for field_name, control_type in field_types.items():
-            self.fields[field_name].widget.attrs["data-control-for"] = control_type
+        ambito_for_type = {
+            "SEMILAVORATO": "SEMILAVORATO", "BATCH": "ROBOQBO_BATCH",
+            "TANK": "ROBOQBO_TANK", "CARRELLO": "INVASETTAMENTO_CARRELLO",
+        }
+        types_for_field = {name: [] for name in field_for_code.values()}
+        self.required_by_type = {control_type: [] for control_type, _label in choices}
+        configurations = ConfigurazioneControlloSemplificato.objects.filter(
+            attivo=True, ambito__in=[ambito_for_type[t] for t, _label in choices]
+        ).order_by("ordine", "pk")
+        for configuration in configurations:
+            field_name = field_for_code[configuration.codice]
+            control_type = next(t for t, _label in choices if ambito_for_type[t] == configuration.ambito)
+            types_for_field[field_name].append(control_type)
+            self.fields[field_name].label = configuration.nome
+            if configuration.obbligatorio:
+                self.required_by_type[control_type].append(field_name)
+        types_for_field["batch_associati"] = ["TANK"] if any(t == "TANK" for t, _ in choices) else []
+        for field_name, control_types in types_for_field.items():
+            self.fields[field_name].widget.attrs["data-control-for"] = ",".join(control_types)
 
     def clean(self):
         data = super().clean()
         if data.get("tipo") == "TANK" and not data.get("batch_associati"):
             self.add_error("batch_associati", "Associare almeno un batch al tank.")
+        for field_name in self.required_by_type.get(data.get("tipo"), ()):
+            if data.get(field_name) in (None, ""):
+                self.add_error(field_name, "Questo controllo è obbligatorio.")
         return data
 
 
