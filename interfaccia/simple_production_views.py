@@ -293,6 +293,7 @@ def close(request, pk):
     if obj.tipo == "SEMILAVORATO":
         def close_semi(d):
             location = d.pop("destinazione")
+            d.pop("moca_articolo")
             return ProduzioneSemplificataService.chiudi_semilavorato(actor=request.user, sessione=obj,
                 destinazione=Position(location.pk, d.pop("scaffale"), d.pop("piano")), **d)
         return _form_view(request, SemiFinishedSummaryForm, close_semi, "Chiudi semilavorato")
@@ -302,7 +303,11 @@ def close(request, pk):
             messages.success(request, "Lavorazione RoboQbo chiusa.")
             return redirect("ui:simple_session", pk=obj.pk)
         return render(request, "interfaccia/semplice/confirm.html", {"section": "produzione-semplice", "session": obj})
-    return _form_view(request, SummaryForm, lambda d: ProduzioneSemplificataService.chiudi_invasettamento(actor=request.user, sessione=obj, **d), "Chiudi invasettamento e calcola resa")
+    def close_filling(data):
+        data.pop("vasetti_articolo")
+        data.pop("capsule_articolo")
+        return ProduzioneSemplificataService.chiudi_invasettamento(actor=request.user, sessione=obj, **data)
+    return _form_view(request, SummaryForm, close_filling, "Chiudi invasettamento e calcola resa")
 
 
 @permitted("auth.can_execute_production")

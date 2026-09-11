@@ -37,6 +37,25 @@ document.querySelectorAll('[data-control-type]').forEach(selector => {
   updateControlFields(false);
 });
 
+document.querySelectorAll('[data-stock-article]').forEach(articleSelector => {
+  const key = articleSelector.dataset.stockArticle;
+  const stockSelector = articleSelector.form.querySelector(`[data-stock-for="${key}"]`);
+  if (!stockSelector) return;
+  const updateStocks = () => {
+    const articleId = articleSelector.value;
+    let selectedIsVisible = false;
+    Array.from(stockSelector.options).forEach(option => {
+      const visible = !option.value || option.dataset.article === articleId;
+      option.hidden = !visible;
+      option.disabled = !visible;
+      if (visible && option.selected) selectedIsVisible = true;
+    });
+    if (!selectedIsVisible) stockSelector.value = '';
+  };
+  articleSelector.addEventListener('change', updateStocks);
+  updateStocks();
+});
+
 document.querySelectorAll('[data-nc-action-type]').forEach(selector => {
   const form = selector.closest('form');
   const updateActionFields = () => {

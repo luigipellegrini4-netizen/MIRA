@@ -20,6 +20,31 @@ def recipe_queryset_for_category(code, name_match):
     ).select_related("articolo")
 
 
+def article_ids_for_category(code):
+    categories = list(CategoriaArticolo.objects.filter(attiva=True).select_related("categoria_padre"))
+    accepted = [category.pk for category in categories if any(
+        ancestor.codice.upper() == code for ancestor in [category, *category.antenati()]
+    )]
+    return Articolo.objects.filter(attivo=True, categoria_id__in=accepted).values_list("pk", flat=True)
+
+
+def stock_label(stock):
+    expiry = stock.lotto.data_scadenza.strftime("%d/%m/%Y") if stock.lotto.data_scadenza else "non indicata"
+    return (
+        f"{stock.lotto.articolo.codice} — {stock.lotto.articolo.descrizione} · lotto {stock.lotto.codice_lotto} · "
+        f"{stock.ubicazione.codice}/{stock.scaffale or '-'}-{stock.piano or '-'} · disponibili {stock.quantita} "
+        f"{stock.lotto.articolo.unita_misura} · scadenza {expiry}"
+    )
+
+
+class StockByArticleSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        if value and getattr(value, "instance", None):
+            option["attrs"]["data-article"] = value.instance.lotto.articolo_id
+        return option
+
+
 class OpenRoboQboForm(forms.Form):
     ricetta = forms.ModelChoiceField(queryset=Ricetta.objects.none())
     numero_batch_previsti = forms.IntegerField(min_value=1)
@@ -47,10 +72,16 @@ class OpenSemiFinishedForm(forms.Form):
 class OpenFillingForm(forms.Form):
     lotto_origine = forms.ModelChoiceField(
         label="Lotto RoboQbo",
-        queryset=SessioneProduzioneSemplificata.objects.filter(tipo="ROBOQBO", stato__in=["APERTA", "CHIUSA"]).select_related("ricetta__articolo"),
+        queryset=SessioneProduzioneSemplificata.objects.none(),
     )
     igienizzazione_confermata = forms.BooleanField(label="Vasetti e capsule sono puliti e igienizzati")
     note = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["lotto_origine"].queryset = SessioneProduzioneSemplificata.objects.filter(
+            tipo="ROBOQBO", stato__in=["APERTA", "CHIUSA"], sessioni_invasettamento__isnull=True,
+        ).select_related("ricetta__articolo")
 
 
 class PickingForm(forms.Form):
@@ -264,6 +295,35 @@ class SummaryForm(forms.Form):
     capsule_difettose = forms.IntegerField(min_value=0)
     peso_netto_g = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        moca_ids = article_ids_for_category("MOCA")
+        stocks = Giacenza.objects.filter(
+            quantita__gt=0, ubicazione__attiva=True, lotto__articolo_id__in=moca_ids,
+        ).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__data_scadenza", "pk")
+        articles = Articolo.objects.filter(pk__in=moca_ids, lotti__giacenze__quantita__gt=0).distinct()
+        for prefix, label in (("vasetti", "Vasetti"), ("capsule", "Capsule")):
+            self.fields[f"{prefix}_articolo"] = forms.ModelChoiceField(
+                queryset=articles, label=f"Tipo di {label.lower()}", widget=forms.Select(attrs={"data-stock-article": prefix})
+            )
+            self.fields[f"{prefix}_giacenza"] = forms.ModelChoiceField(
+                queryset=stocks, label=f"Lotto e posizione {label.lower()}",
+                widget=StockByArticleSelect(attrs={"data-stock-for": prefix}),
+            )
+            self.fields[f"{prefix}_giacenza"].label_from_instance = stock_label
+
+    def clean(self):
+        data = super().clean()
+        for prefix in ("vasetti", "capsule"):
+            article, stock = data.get(f"{prefix}_articolo"), data.get(f"{prefix}_giacenza")
+            if article and stock and stock.lotto.articolo_id != article.pk:
+                self.add_error(f"{prefix}_giacenza", "Il lotto non appartiene al tipo MOCA selezionato.")
+        if data.get("vasetti_articolo") and data.get("vasetti_articolo") == data.get("capsule_articolo"):
+            self.add_error("capsule_articolo", "Vasetti e capsule devono essere articoli distinti.")
+        if sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati", "vasetti_quarantena")) == 0:
+            self.add_error("vasetti_buoni", "Indicare almeno un vasetto prodotto.")
+        return data
+
 
 class SemiFinishedSummaryForm(forms.Form):
     quantita_finale_kg = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità finale ottenuta (kg)")
@@ -274,14 +334,35 @@ class SemiFinishedSummaryForm(forms.Form):
     destinazione = forms.ModelChoiceField(queryset=Ubicazione.objects.none(), label="Ubicazione finale")
     scaffale = forms.CharField(required=False, max_length=30)
     piano = forms.CharField(required=False, max_length=30)
+    moca_articolo = forms.ModelChoiceField(queryset=Articolo.objects.none(), label="Tipo di MOCA", widget=forms.Select(attrs={"data-stock-article": "moca"}))
+    moca_giacenza = forms.ModelChoiceField(
+        queryset=Giacenza.objects.none(), label="Lotto e posizione MOCA",
+        widget=StockByArticleSelect(attrs={"data-stock-for": "moca"}),
+    )
+    moca_quantita = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità MOCA da prelevare")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["destinazione"].queryset = Ubicazione.objects.filter(attiva=True)
         self.fields["data_scadenza"].widget.attrs["min"] = timezone.localdate().isoformat()
+        moca_ids = article_ids_for_category("MOCA")
+        self.fields["moca_articolo"].queryset = Articolo.objects.filter(
+            pk__in=moca_ids, lotti__giacenze__quantita__gt=0
+        ).distinct()
+        self.fields["moca_giacenza"].queryset = Giacenza.objects.filter(
+            quantita__gt=0, ubicazione__attiva=True, lotto__articolo_id__in=moca_ids,
+        ).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__data_scadenza", "pk")
+        self.fields["moca_giacenza"].label_from_instance = stock_label
 
     def clean_data_scadenza(self):
         value = self.cleaned_data["data_scadenza"]
         if value < timezone.localdate():
             raise forms.ValidationError("La scadenza non può precedere la data di produzione.")
         return value
+
+    def clean(self):
+        data = super().clean()
+        article, stock = data.get("moca_articolo"), data.get("moca_giacenza")
+        if article and stock and stock.lotto.articolo_id != article.pk:
+            self.add_error("moca_giacenza", "Il lotto non appartiene al tipo MOCA selezionato.")
+        return data

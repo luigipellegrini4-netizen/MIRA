@@ -25,6 +25,24 @@ def _record(record):
 
 class ProduzioneSemplificataService:
     @staticmethod
+    def _consuma_giacenza(*, actor, sessione, giacenza, quantita, note):
+        from anagrafiche.models import CategoriaArticolo
+        from magazzino.models import Movimento
+        from magazzino.services import MovementService, Position
+        stock = giacenza.__class__.objects.select_related("lotto__articolo", "ubicazione").get(pk=giacenza.pk)
+        moca_categories = CategoriaArticolo.objects.filter(codice__iexact="MOCA", attiva=True)
+        if not any(stock.lotto.articolo.appartiene_a_categoria_o_discendenti(category) for category in moca_categories):
+            raise ValidationError("Il lotto selezionato non appartiene alla categoria MOCA.")
+        movement = MovementService.register(
+            actor=actor, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO, quantita=quantita,
+            origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano), note=note,
+        )
+        return _record(PrelievoSessioneSemplificata(
+            sessione=sessione, lotto=stock.lotto, movimento=movement, quantita_kg=quantita,
+            numero_batch=None, da_ricetta=False, registrato_da=actor, note=note,
+        ))
+
+    @staticmethod
     def _code(*, tipo, ricetta, giorno=None):
         from magazzino.models import Lotto
 
@@ -93,6 +111,8 @@ class ProduzioneSemplificataService:
             raise ValidationError("Selezionare un lotto RoboQbo.")
         if source.stato not in {"APERTA", "CHIUSA"}:
             raise ValidationError("Il lotto RoboQbo deve essere già stato avviato.")
+        if source.sessioni_invasettamento.exists():
+            raise ValidationError("Il lotto RoboQbo è già stato scelto per un invasettamento.")
         if not igienizzazione_confermata:
             raise ValidationError("Confermare la pulizia e igienizzazione di vasetti e capsule.")
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="INVASETTAMENTO", stato__in=["PIANIFICATA", "APERTA"]).exists():
@@ -270,13 +290,18 @@ class ProduzioneSemplificataService:
 
     @staticmethod
     @transaction.atomic
-    def chiudi_semilavorato(*, actor, sessione, quantita_finale_kg, data_scadenza, destinazione):
+    def chiudi_semilavorato(*, actor, sessione, quantita_finale_kg, data_scadenza, destinazione,
+                            moca_giacenza, moca_quantita):
         from magazzino.models import Lotto, Movimento
         from magazzino.services import MovementService
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
         if current.tipo != "SEMILAVORATO" or current.stato != "APERTA":
             raise ValidationError("La sessione Semilavorati non è aperta.")
+        ProduzioneSemplificataService._consuma_giacenza(
+            actor=actor, sessione=current, giacenza=moca_giacenza, quantita=moca_quantita,
+            note=f"MOCA utilizzato nella chiusura {current.lotto_codice}",
+        )
         lot = Lotto.objects.create(articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
             tipo=Lotto.Tipo.PRODUZIONE, data_produzione=timezone.localdate(),
             data_scadenza=data_scadenza, note=f"Prodotto da {current.lotto_codice}")
@@ -290,11 +315,22 @@ class ProduzioneSemplificataService:
     @staticmethod
     @transaction.atomic
     def chiudi_invasettamento(*, actor, sessione, vasetti_buoni, vasetti_scartati,
-                              vasetti_quarantena, capsule_difettose, peso_netto_g):
+                              vasetti_quarantena, capsule_difettose, peso_netto_g,
+                              vasetti_giacenza, capsule_giacenza):
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
         if current.tipo != "INVASETTAMENTO" or current.stato != "APERTA":
             raise ValidationError("La sessione di invasettamento non è aperta.")
+        vasetti_totali = vasetti_buoni + vasetti_scartati + vasetti_quarantena
+        ProduzioneSemplificataService._consuma_giacenza(
+            actor=actor, sessione=current, giacenza=vasetti_giacenza, quantita=vasetti_totali,
+            note=f"Vasetti utilizzati nella chiusura {current.lotto_codice}",
+        )
+        ProduzioneSemplificataService._consuma_giacenza(
+            actor=actor, sessione=current, giacenza=capsule_giacenza,
+            quantita=vasetti_totali + capsule_difettose,
+            note=f"Capsule utilizzate nella chiusura {current.lotto_codice}",
+        )
         summary = _record(RiepilogoSessioneSemplificata(
             sessione=current, vasetti_buoni=vasetti_buoni, vasetti_scartati=vasetti_scartati,
             vasetti_quarantena=vasetti_quarantena, capsule_difettose=capsule_difettose,
