@@ -10,6 +10,7 @@ from produzione.models import (
     AzioneNCSessioneSemplificata,
     ControlloSessioneSemplificata,
     NonConformitaSessioneSemplificata,
+    PrelievoSessioneSemplificata,
     RiepilogoSessioneSemplificata,
     SessioneProduzioneSemplificata,
     VerificaNCSessioneSemplificata,
