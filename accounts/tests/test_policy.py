@@ -4,12 +4,12 @@ from unittest.mock import Mock
 from django.core.exceptions import PermissionDenied
 from django.test import SimpleTestCase
 
-from accounts.permissions import A, RP, RM, RQ, OP, M, CAPABILITIES, ROLES, require_permission
+from accounts.permissions import A, RP, RM, RQ, OP, M, RV, CAPABILITIES, ROLES, require_permission
 
 
 class PolicyTests(SimpleTestCase):
-    def test_six_distinct_roles(self):
-        self.assertEqual(len(set(ROLES)), 6)
+    def test_seven_distinct_roles(self):
+        self.assertEqual(len(set(ROLES)), 7)
 
     def test_admin_has_no_operational_bypass(self):
         for code in ("can_receive_goods", "can_execute_production", "can_adjust_inventory", "can_manage_nc"):
@@ -29,7 +29,7 @@ class PolicyTests(SimpleTestCase):
             self.assertEqual(CAPABILITIES[code][1], {RQ})
 
     def test_all_operational_roles_can_open_nc(self):
-        self.assertEqual(CAPABILITIES["can_open_nc"][1], {RP, RM, RQ, OP, M})
+        self.assertEqual(CAPABILITIES["can_open_nc"][1], {RP, RM, RQ, OP, M, RV})
 
     def test_permission_guard_calls_django(self):
         actor = SimpleNamespace(is_authenticated=True, is_active=True, has_perm=Mock(return_value=True))
