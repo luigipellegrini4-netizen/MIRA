@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
@@ -97,6 +98,11 @@ def session(request, pk):
                     for row in obj.ricetta.righe.select_related("articolo")]
     batch_formset = None
     displayed_controls = controls
+    labeling_remaining = None
+    if obj.tipo == "ETICHETTATURA" and obj.lotto_origine.lotto_prodotto_id:
+        labeling_remaining = obj.lotto_origine.lotto_prodotto.giacenze.filter(
+            quantita__gt=0
+        ).aggregate(totale=Sum("quantita"))["totale"] or 0
     if obj.tipo == "ROBOQBO" and obj.stato == "APERTA":
         existing = {control.numero: control for control in controls if control.tipo == "BATCH"}
         initial = []
@@ -117,7 +123,8 @@ def session(request, pk):
         "controls": controls, "displayed_controls": displayed_controls, "batch_formset": batch_formset,
         "picks": obj.prelievi.select_related("lotto__articolo", "movimento__ubicazione_origine"),
         "ncs": ncs, "nc_count": nc_count, "forecast": forecast,
-        "input_totals": obj.quantita_iniziale_per_unita})
+        "input_totals": obj.quantita_iniziale_per_unita,
+        "labeling_remaining": labeling_remaining})
 
 
 @permitted("auth.can_execute_production")

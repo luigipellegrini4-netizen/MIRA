@@ -108,7 +108,7 @@ class OpenLabelingForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["lotto_origine"].queryset = SessioneProduzioneSemplificata.objects.filter(
             tipo="INVASETTAMENTO", stato="CHIUSA", lotto_prodotto__giacenze__quantita__gt=0,
-        ).exclude(sessioni_invasettamento__tipo="ETICHETTATURA").select_related(
+        ).select_related(
             "ricetta__articolo", "lotto_prodotto"
         ).distinct()
 

@@ -169,8 +169,6 @@ class ProduzioneSemplificataService:
         source = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=lotto_origine.pk)
         if source.tipo != "INVASETTAMENTO" or source.stato != "CHIUSA" or not source.lotto_prodotto_id:
             raise ValidationError("Selezionare un lotto invasettato chiuso e presente in magazzino.")
-        if source.sessioni_invasettamento.filter(tipo="ETICHETTATURA").exists():
-            raise ValidationError("Il lotto invasettato è già stato scelto per un'etichettatura.")
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(
             tipo="ETICHETTATURA", stato__in=["PIANIFICATA", "APERTA"]
         ).exists():
