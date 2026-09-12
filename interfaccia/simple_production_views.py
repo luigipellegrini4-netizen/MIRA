@@ -108,7 +108,7 @@ def session(request, pk):
         ]
     return render(request, "interfaccia/semplice/session.html", {"section": "produzione-semplice", "session": obj,
         "controls": controls, "displayed_controls": displayed_controls, "batch_formset": batch_formset,
-        "picks": obj.prelievi.select_related("lotto__articolo"),
+        "picks": obj.prelievi.select_related("lotto__articolo", "movimento__ubicazione_origine"),
         "ncs": ncs, "nc_count": nc_count, "forecast": forecast,
         "input_totals": obj.quantita_iniziale_per_unita})
 
