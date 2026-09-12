@@ -113,6 +113,20 @@ class OpenLabelingForm(forms.Form):
         ).distinct()
 
 
+class OpenPackagingForm(forms.Form):
+    lotto_origine = forms.ModelChoiceField(label="Lotto etichettato", queryset=SessioneProduzioneSemplificata.objects.none())
+    note = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        candidates = SessioneProduzioneSemplificata.objects.filter(
+            tipo="ETICHETTATURA", stato="CHIUSA", lotto_prodotto__giacenze__quantita__gt=0,
+        ).exclude(lotto_prodotto__stato_confezionamento="CONFEZIONATO").select_related(
+            "ricetta__articolo", "lotto_prodotto"
+        ).distinct()
+        self.fields["lotto_origine"].queryset = candidates
+
+
 class PickingForm(forms.Form):
     numero_batch = forms.IntegerField(min_value=1)
     giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), label="Lotto e posizione")
@@ -501,4 +515,27 @@ class LabelingSummaryForm(forms.Form):
             self.add_error("quantita_finale_kg", f"La quantità supera la disponibilità complessiva del lotto: {self.available:g} {self.source_lot.articolo.unita_misura}.")
         data.pop("lotto_origine_display", None)
         data.pop("quantita_disponibile_display", None)
+        return data
+
+
+class PackagingSummaryForm(forms.Form):
+    lotto_display = forms.CharField(label="Lotto prodotto finito", disabled=True)
+    residuo_display = forms.CharField(label="Quantità ancora da confezionare", disabled=True)
+    quantita_confezionata = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità confezionata")
+
+    def __init__(self, *args, session, **kwargs):
+        super().__init__(*args, **kwargs)
+        lot = session.lotto_origine.lotto_prodotto
+        total = session.lotto_origine.quantita_finale_kg or 0
+        self.remaining = max(total - lot.quantita_confezionata, 0)
+        unit = lot.articolo.unita_misura
+        self.fields["lotto_display"].initial = f"{lot.codice_lotto} · {lot.articolo.codice} — {lot.articolo.descrizione}"
+        self.fields["residuo_display"].initial = f"{self.remaining:g} {unit}"
+        self.fields["quantita_confezionata"].label = f"Quantità confezionata ({unit})"
+
+    def clean(self):
+        data = super().clean()
+        if data.get("quantita_confezionata") and data["quantita_confezionata"] > self.remaining:
+            self.add_error("quantita_confezionata", f"La quantità supera il residuo: {self.remaining:g}.")
+        data.pop("lotto_display", None); data.pop("residuo_display", None)
         return data

@@ -15,6 +15,7 @@ class SessioneProduzioneSemplificata(ValidatedModel):
         ROBOQBO = "ROBOQBO", "RoboQbo"
         INVASETTAMENTO = "INVASETTAMENTO", "Invasettamento"
         ETICHETTATURA = "ETICHETTATURA", "Etichettatura"
+        CONFEZIONAMENTO = "CONFEZIONAMENTO", "Confezionamento"
 
     class Stato(models.TextChoices):
         PIANIFICATA = "PIANIFICATA", "Pianificata"
@@ -86,7 +87,7 @@ class SessioneProduzioneSemplificata(ValidatedModel):
 
     def clean(self):
         super().clean()
-        if self.ricetta_id and self.lotto_codice and type(self).objects.filter(
+        if self.tipo != self.Tipo.CONFEZIONAMENTO and self.ricetta_id and self.lotto_codice and type(self).objects.filter(
             ricetta__articolo=self.ricetta.articolo, lotto_codice=self.lotto_codice
         ).exclude(pk=self.pk).exists():
             raise ValidationError("Codice lotto già utilizzato per questo articolo.")
@@ -114,6 +115,11 @@ class SessioneProduzioneSemplificata(ValidatedModel):
                 raise ValidationError("Invasettamento ed etichettatura devono usare lo stesso articolo.")
             if self.numero_batch_previsti is not None:
                 raise ValidationError("L'etichettatura non richiede un numero di batch.")
+        elif self.tipo == self.Tipo.CONFEZIONAMENTO:
+            if not self.lotto_origine_id or self.lotto_origine.tipo != self.Tipo.ETICHETTATURA:
+                raise ValidationError("Il confezionamento deve essere collegato a un'etichettatura.")
+            if self.ricetta_id != self.lotto_origine.ricetta_id or self.lotto_codice != self.lotto_origine.lotto_codice:
+                raise ValidationError("Il confezionamento deve mantenere articolo e codice del lotto etichettato.")
 
 
 class PrelievoSessioneSemplificata(ValidatedModel):

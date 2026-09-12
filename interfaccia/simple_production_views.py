@@ -16,9 +16,9 @@ from produzione.models import (NonConformitaSessioneSemplificata,
                                PrelievoSessioneSemplificata,
                                SessioneProduzioneSemplificata)
 from produzione.services import ProduzioneSemplificataService
-from .simple_production_forms import (AdditionalPickingForm, BatchControlFormSet, ControlForm, NCForm, OpenFillingForm, OpenLabelingForm, OpenRoboQboForm,
+from .simple_production_forms import (AdditionalPickingForm, BatchControlFormSet, ControlForm, NCForm, OpenFillingForm, OpenLabelingForm, OpenPackagingForm, OpenRoboQboForm,
     OpenSemiFinishedForm, PickingForm, SemiFinishedPickingFormSet, SemiFinishedSummaryForm, SummaryForm,
-    LabelingSummaryForm, SimpleNCActionForm, SimpleNCCloseForm, SimpleNCTakeChargeForm, SimpleNCVerificationForm)
+    LabelingSummaryForm, PackagingSummaryForm, SimpleNCActionForm, SimpleNCCloseForm, SimpleNCTakeChargeForm, SimpleNCVerificationForm)
 from .views import permitted
 
 
@@ -32,6 +32,7 @@ def sessions(request):
         ("ROBOQBO", "RoboQbo", "RBQB", "Batch, controlli termici, tank, °Brix e pH.", "ui:simple_open_roboqbo"),
         ("INVASETTAMENTO", "Invasettamento", "INV", "Carrelli, pastorizzazione, shock termico e vuoto.", "ui:simple_open_filling"),
         ("ETICHETTATURA", "Etichettatura", "PF", "Dal lotto invasettato al prodotto finito etichettato.", "ui:simple_open_labeling"),
+        ("CONFEZIONAMENTO", "Confezionamento", "BOX", "Confezionamento del prodotto finito senza cambiare lotto.", "ui:simple_open_packaging"),
     ]
     groups = []
     for code, name, marker, description, new_url in definitions:
@@ -81,6 +82,12 @@ def open_filling(request):
 @require_http_methods(["GET", "POST"])
 def open_labeling(request):
     return _form_view(request, OpenLabelingForm, lambda d: ProduzioneSemplificataService.apri_etichettatura(actor=request.user, **d), "Apri etichettatura")
+
+
+@permitted("auth.can_execute_production")
+@require_http_methods(["GET", "POST"])
+def open_packaging(request):
+    return _form_view(request, OpenPackagingForm, lambda d: ProduzioneSemplificataService.apri_confezionamento(actor=request.user, **d), "Apri confezionamento")
 
 
 @permitted("produzione.view_sessioneproduzionesemplificata")
@@ -332,11 +339,17 @@ def close(request, pk):
             data["destinazione"] = Position(location.pk, data.pop("scaffale"), data.pop("piano"))
             return ProduzioneSemplificataService.chiudi_invasettamento(actor=request.user, sessione=obj, **data)
         return _form_view(request, SummaryForm, close_filling, "Chiudi invasettamento e calcola resa")
-    def close_labeling(data):
-        location = data.pop("destinazione")
-        data["destinazione"] = Position(location.pk, data.pop("scaffale"), data.pop("piano"))
-        return ProduzioneSemplificataService.chiudi_etichettatura(actor=request.user, sessione=obj, **data)
-    return _form_view(request, LabelingSummaryForm, close_labeling, "Chiudi etichettatura", session=obj)
+    if obj.tipo == "ETICHETTATURA":
+        def close_labeling(data):
+            location = data.pop("destinazione")
+            data["destinazione"] = Position(location.pk, data.pop("scaffale"), data.pop("piano"))
+            return ProduzioneSemplificataService.chiudi_etichettatura(actor=request.user, sessione=obj, **data)
+        return _form_view(request, LabelingSummaryForm, close_labeling, "Chiudi etichettatura", session=obj)
+    return _form_view(
+        request, PackagingSummaryForm,
+        lambda data: ProduzioneSemplificataService.chiudi_confezionamento(actor=request.user, sessione=obj, **data),
+        "Chiudi confezionamento", session=obj,
+    )
 
 
 @permitted("auth.can_execute_production")

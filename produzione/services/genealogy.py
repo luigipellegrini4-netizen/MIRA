@@ -51,6 +51,12 @@ class GenealogyService:
                     ).values_list("lotto_origine_id", flat=True)) - sessions
                     sessions.update(parents)
                     pending = parents
+                # I materiali usati nel confezionamento appartengono allo stesso lotto
+                # prodotto dall'etichettatura, che non cambia codice in questa fase.
+                packaging = set(SessioneProduzioneSemplificata.objects.filter(
+                    tipo="CONFEZIONAMENTO", lotto_origine_id__in=sessions
+                ).values_list("pk", flat=True))
+                sessions.update(packaging)
                 material_sessions.update(sessions)
                 legacy = InputLavorazione.objects.filter(lavorazione_id__in=works).values_list("lotto_id", flat=True)
                 simple = PrelievoSessioneSemplificata.objects.filter(sessione_id__in=sessions).values_list("lotto_id", flat=True)
@@ -126,6 +132,12 @@ class GenealogyService:
                     "a": f"lotto:{session.lotto_prodotto_id}", "sessione_id": session.pk,
                     "quantita": str(session.quantita_finale_kg) if session.quantita_finale_kg is not None else None,
                     "movimenti_ids": output_movements_by_session[session.pk], "output_registrato": True})
+            elif (session.tipo == "CONFEZIONAMENTO" and session.lotto_origine_id
+                  and session.lotto_origine.lotto_prodotto_id in lot_ids):
+                edges.append({"tipo": "CONFEZIONAMENTO", "da": f"sessione:{session.pk}",
+                    "a": f"lotto:{session.lotto_origine.lotto_prodotto_id}", "sessione_id": session.pk,
+                    "quantita": str(session.quantita_finale_kg) if session.quantita_finale_kg is not None else None,
+                    "movimenti_ids": [], "output_registrato": True})
 
         from qualita.models import ControlloQualita, NonConformita
         controls = list(ControlloQualita.objects.filter(lavorazione_id__in=work_ids).select_related("controllo_richiesto__parametro_controllo").order_by("pk"))

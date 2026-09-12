@@ -179,6 +179,24 @@ class ProduzioneSemplificataService:
             lotto_origine=source, aperta_da=actor, note=note,
         ))
 
+    @classmethod
+    @transaction.atomic
+    def apri_confezionamento(cls, *, actor, lotto_origine, note=""):
+        from magazzino.models import Lotto
+        require_permission(actor, "can_execute_production")
+        business_mutex()
+        source = SessioneProduzioneSemplificata.objects.select_for_update().select_related("lotto_prodotto").get(pk=lotto_origine.pk)
+        if source.tipo != "ETICHETTATURA" or source.stato != "CHIUSA" or not source.lotto_prodotto_id:
+            raise ValidationError("Selezionare un lotto etichettato chiuso.")
+        if source.lotto_prodotto.stato_confezionamento == Lotto.StatoConfezionamento.CONFEZIONATO:
+            raise ValidationError("Il lotto è già interamente confezionato.")
+        if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="CONFEZIONAMENTO", stato__in=["PIANIFICATA", "APERTA"]).exists():
+            raise ValidationError("Il modulo Confezionamento ha già una sessione aperta.")
+        return _record(SessioneProduzioneSemplificata(
+            tipo="CONFEZIONAMENTO", ricetta=source.ricetta, lotto_codice=source.lotto_codice,
+            lotto_origine=source, aperta_da=actor, note=note,
+        ))
+
     @staticmethod
     @transaction.atomic
     def registra_controllo(*, actor, sessione, tipo, numero, batch_associati=(), **values):
@@ -468,6 +486,7 @@ class ProduzioneSemplificataService:
         lot = Lotto.objects.create(
             articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
             tipo=Lotto.Tipo.PRODUZIONE, stato_prodotto=Lotto.StatoProdotto.PRODOTTO_FINITO,
+            stato_confezionamento=Lotto.StatoConfezionamento.DA_CONFEZIONARE,
             data_produzione=timezone.localdate(), data_scadenza=data_scadenza,
             note=f"Prodotto dall'etichettatura del lotto {source_lot.codice_lotto}",
         )
@@ -477,5 +496,30 @@ class ProduzioneSemplificataService:
             note=f"Chiusura etichettatura {current.lotto_codice}", sessione_semplificata=current,
         )
         current.lotto_prodotto, current.quantita_finale_kg = lot, quantita_finale_kg
+        current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
+        return _record(current)
+
+    @staticmethod
+    @transaction.atomic
+    def chiudi_confezionamento(*, actor, sessione, quantita_confezionata):
+        from magazzino.models import Lotto
+        require_permission(actor, "can_execute_production")
+        current = SessioneProduzioneSemplificata.objects.select_for_update().select_related(
+            "lotto_origine__lotto_prodotto"
+        ).get(pk=sessione.pk)
+        if current.tipo != "CONFEZIONAMENTO" or current.stato != "APERTA":
+            raise ValidationError("La sessione di confezionamento non è aperta.")
+        lot = Lotto.objects.select_for_update().get(pk=current.lotto_origine.lotto_prodotto_id)
+        total = current.lotto_origine.quantita_finale_kg or Decimal("0")
+        remaining = total - lot.quantita_confezionata
+        if quantita_confezionata > remaining:
+            raise ValidationError(f"Quantità superiore al residuo da confezionare: {remaining:g}.")
+        lot.quantita_confezionata += quantita_confezionata
+        lot.stato_confezionamento = (
+            Lotto.StatoConfezionamento.CONFEZIONATO if lot.quantita_confezionata >= total
+            else Lotto.StatoConfezionamento.PARZIALE
+        )
+        lot.full_clean(); lot.save(update_fields=["quantita_confezionata", "stato_confezionamento"])
+        current.quantita_finale_kg = quantita_confezionata
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         return _record(current)

@@ -27,6 +27,7 @@ urlpatterns = [
     path("produzione/semilavorato/nuova/", simple_production_views.open_semifinished, name="simple_open_semifinished"),
     path("produzione/invasettamento/nuova/", simple_production_views.open_filling, name="simple_open_filling"),
     path("produzione/etichettatura/nuova/", simple_production_views.open_labeling, name="simple_open_labeling"),
+    path("produzione/confezionamento/nuova/", simple_production_views.open_packaging, name="simple_open_packaging"),
     path("produzione/<int:pk>/", simple_production_views.session, name="simple_session"),
     path("produzione/<int:pk>/prelievo/", simple_production_views.picking, name="simple_picking"),
     path("produzione/<int:pk>/altro-prelievo/", simple_production_views.additional_picking, name="simple_additional_picking"),

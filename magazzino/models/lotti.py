@@ -20,10 +20,18 @@ class Lotto(HistoricalModel):
         INVASETTATO = "INVASETTATO", "Invasettato"
         PRODOTTO_FINITO = "PRODOTTO_FINITO", "Prodotto finito"
 
+    class StatoConfezionamento(models.TextChoices):
+        NON_APPLICABILE = "NON_APPLICABILE", "Non applicabile"
+        DA_CONFEZIONARE = "DA_CONFEZIONARE", "Da confezionare"
+        PARZIALE = "PARZIALE", "Parzialmente confezionato"
+        CONFEZIONATO = "CONFEZIONATO", "Confezionato"
+
     articolo = models.ForeignKey("anagrafiche.Articolo", on_delete=models.PROTECT, related_name="lotti")
     codice_lotto = models.CharField(max_length=100)
     tipo = models.CharField(max_length=10, choices=Tipo.choices)
     stato_prodotto = models.CharField(max_length=20, choices=StatoProdotto.choices, default=StatoProdotto.GENERICO)
+    stato_confezionamento = models.CharField(max_length=20, choices=StatoConfezionamento.choices, default=StatoConfezionamento.NON_APPLICABILE)
+    quantita_confezionata = models.DecimalField(max_digits=18, decimal_places=6, default=0)
     fornitore = models.ForeignKey("anagrafiche.Fornitore", null=True, blank=True, on_delete=models.PROTECT, related_name="lotti")
     data_produzione = models.DateField(null=True, blank=True)
     data_scadenza = models.DateField(null=True, blank=True)
