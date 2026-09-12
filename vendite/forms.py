@@ -27,11 +27,12 @@ class RigaVenditaForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["giacenza"].queryset = Giacenza.objects.filter(
             quantita__gt=0, ubicazione__attiva=True,
-            lotto__stato_confezionamento="CONFEZIONATO",
+            lotto__stato_prodotto="PRODOTTO_FINITO",
         ).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__codice_lotto")
         self.fields["giacenza"].label_from_instance = lambda stock: (
             f"{stock.lotto.codice_lotto} · {stock.lotto.articolo.codice} — {stock.lotto.articolo.descrizione} — "
-            f"{stock.ubicazione.codice}/{stock.scaffale or '-'}/{stock.piano or '-'} — {stock.quantita:g} {stock.lotto.articolo.unita_misura}"
+            f"{stock.ubicazione.codice}/{stock.scaffale or '-'}/{stock.piano or '-'} — {stock.quantita:g} "
+            f"{stock.lotto.articolo.unita_misura} — {stock.lotto.get_stato_confezionamento_display()}"
         )
 
     def clean(self):
