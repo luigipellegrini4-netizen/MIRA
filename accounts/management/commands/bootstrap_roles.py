@@ -69,6 +69,12 @@ class Command(BaseCommand):
         execution |= {"turnooperativo", "pianoproduzione", "batchpiano", "revisioneprelievo", "rigapianoprelievo",
             "prelievodapiano", "tankaziendale", "sessioneinvasettamento", "carrellosessione", "trattamentocarrello",
             "riepilogoinvasettamento", "codiceproduzione"}
+        execution |= {
+            "sessioneproduzionesemplificata", "prelievosessionesemplificata",
+            "controllosessionesemplificata", "associazionetankbatch",
+            "riepilogosessionesemplificata", "nonconformitasessionesemplificata",
+            "azionencsessionesemplificata", "verificancsessionesemplificata",
+        }
         for permission in Permission.objects.filter(content_type__app_label="produzione", content_type__model__in=configurations | execution).select_related("content_type"):
             model = permission.content_type.model
             if permission.codename.startswith("view_"):
