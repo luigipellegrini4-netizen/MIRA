@@ -1,5 +1,6 @@
 """Tracciabilità materiale in sola lettura, con contesto di processo separato."""
 from collections import defaultdict
+from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
@@ -43,6 +44,13 @@ class GenealogyService:
                 sessions = set(SessioneProduzioneSemplificata.objects.filter(
                     lotto_prodotto_id__in=frontier
                 ).values_list("pk", flat=True))
+                pending = set(sessions)
+                while pending:
+                    parents = set(SessioneProduzioneSemplificata.objects.filter(
+                        pk__in=pending, lotto_origine_id__isnull=False
+                    ).values_list("lotto_origine_id", flat=True)) - sessions
+                    sessions.update(parents)
+                    pending = parents
                 material_sessions.update(sessions)
                 legacy = InputLavorazione.objects.filter(lavorazione_id__in=works).values_list("lotto_id", flat=True)
                 simple = PrelievoSessioneSemplificata.objects.filter(sessione_id__in=sessions).values_list("lotto_id", flat=True)
@@ -59,7 +67,7 @@ class GenealogyService:
             return set(legacy) | set(simple)
 
         lot_ids, omitted = walk_lots(root.pk, neighbors, max_lotti)
-        lots = list(Lotto.objects.filter(pk__in=lot_ids).select_related("articolo", "fornitore").order_by("pk"))
+        lots = list(Lotto.objects.filter(pk__in=lot_ids).select_related("articolo__categoria", "fornitore").order_by("pk"))
         # L'origine di ogni lotto incluso è sempre documentata, anche in VALLE.
         material_works.update(l.lavorazione_origine_id for l in lots if l.lavorazione_origine_id)
         units = list(UnitaLavorazione.objects.filter(lotto_id__in=lot_ids).select_related("risorsa_produttiva").order_by("pk"))
@@ -110,6 +118,9 @@ class GenealogyService:
         for movement in simple_output_movements:
             output_movements_by_session[movement.sessione_semplificata_id].append(movement.pk)
         for session in sessions:
+            if session.lotto_origine_id and session.lotto_origine_id in material_sessions:
+                edges.append({"tipo": "PASSAGGIO_PRODUTTIVO", "da": f"sessione:{session.lotto_origine_id}",
+                    "a": f"sessione:{session.pk}", "quantita": None, "movimenti_ids": []})
             if session.lotto_prodotto_id in lot_ids:
                 edges.append({"tipo": "PRODUZIONE", "da": f"sessione:{session.pk}",
                     "a": f"lotto:{session.lotto_prodotto_id}", "sessione_id": session.pk,
@@ -129,6 +140,25 @@ class GenealogyService:
             sessione_id__in=material_sessions
         ).select_related("controllo").order_by("pk"))
         receipts = RicevimentoLotto.objects.filter(lotto_id__in=lot_ids).order_by("pk")
+        external_quantities = defaultdict(lambda: 0)
+        for edge in edges:
+            if edge["tipo"] == "CONSUMO" and edge["da"].startswith("lotto:"):
+                external_quantities[int(edge["da"].split(":", 1)[1])] += Decimal(edge.get("quantita") or "0")
+        external_inputs = []
+        for lot in lots:
+            if lot.tipo != Lotto.Tipo.ACQUISTO:
+                continue
+            category_chain = [lot.articolo.categoria, *lot.articolo.categoria.antenati()]
+            external_inputs.append({
+                "lotto_id": lot.pk, "lotto_codice": lot.codice_lotto,
+                "articolo_codice": lot.articolo.codice, "articolo_descrizione": lot.articolo.descrizione,
+                "unita_misura": lot.articolo.unita_misura,
+                "quantita": str(external_quantities[lot.pk]),
+                "fornitore": lot.fornitore.ragione_sociale if lot.fornitore_id else None,
+                "moca": any(category.codice.upper() == "MOCA" for category in category_chain),
+                "data_scadenza": iso(lot.data_scadenza),
+            })
+        external_inputs.sort(key=lambda row: (not row["moca"], row["articolo_codice"], row["lotto_codice"]))
         return {
             "versione": 1, "lotto_radice_id": root.pk, "direzione": direzione,
             "generato_il": iso(timezone.now()), "max_lotti": max_lotti,
@@ -151,6 +181,7 @@ class GenealogyService:
                 "lotto_prodotto_id": s.lotto_prodotto_id, "aperta_il": iso(s.aperta_il),
                 "chiusa_il": iso(s.chiusa_il)} for s in sessions],
             "legami_materiali": edges,
+            "materiali_esterni": external_inputs,
             "ricevimenti": [{"id": r.pk, "lotto_id": r.lotto_id, "quantita": str(r.quantita_ricevuta),
                 "data": iso(r.data_ricevimento), "numero_ddt": r.numero_ddt, "numero_fattura": r.numero_fattura} for r in receipts],
             "unita": [{"id": u.pk, "codice": u.codice, "lotto_id": u.lotto_id, "lavorazione_origine_id": u.lavorazione_origine_id,

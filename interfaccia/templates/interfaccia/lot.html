@@ -30,6 +30,32 @@
   </section>
   {% if graph.troncato %}<div class="notice warning">Il percorso supera il limite di visualizzazione. Apri uno dei lotti per proseguire.</div>{% endif %}
 
+  {% if direction == 'MONTE' %}
+    <section class="panel space-top">
+      <div class="panel-head">
+        <div><h2>Materiali provenienti dall’esterno</h2><small>Lotti acquistati utilizzati lungo tutta la catena produttiva, compresi i MOCA.</small></div>
+        <span class="counter">{{ graph.materiali_esterni|length }} lotti</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Articolo</th><th>Lotto fornitore</th><th>Fornitore</th><th>Scadenza</th><th class="number">Quantità utilizzata</th></tr></thead>
+          <tbody>
+            {% for material in graph.materiali_esterni %}
+              <tr>
+                <td>{% if material.moca %}<span class="pill">MOCA</span>{% else %}<span class="pill neutral">Ingrediente</span>{% endif %}</td>
+                <td><strong>{{ material.articolo_descrizione }}</strong><small>{{ material.articolo_codice }}</small></td>
+                <td><a href="{% url 'ui:lot' material.lotto_id %}">{{ material.lotto_codice }}</a></td>
+                <td>{{ material.fornitore|default:'—' }}</td>
+                <td>{{ material.scadenza_display|default:'—' }}</td>
+                <td class="number"><strong>{{ material.quantita|floatformat:'-6' }} {{ material.unita_misura }}</strong></td>
+              </tr>
+            {% empty %}<tr><td colspan="6" class="empty">Nessun lotto acquistato collegato a questa produzione.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
   <section class="panel trace-panel space-top">
     <div class="panel-head">
       <div><h2>Genealogia del lotto</h2><small>Ogni elemento compare una sola volta. Clicca un lotto o una produzione per aprirlo.</small></div>

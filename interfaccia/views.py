@@ -178,6 +178,11 @@ def lot_detail(request, pk):
             {**edge, "lotto": nodes.get(edge["da"])}
             for edge in graph["legami_materiali"] if edge.get("prelievo_sessione_id")
         ]
+        for material in graph["materiali_esterni"]:
+            material["scadenza_display"] = (
+                date.fromisoformat(material["data_scadenza"]).strftime("%d/%m/%Y")
+                if material["data_scadenza"] else ""
+            )
         root_node = f"lotto:{lot.pk}"
         relations = {}
         for edge in graph["legami_materiali"]:
