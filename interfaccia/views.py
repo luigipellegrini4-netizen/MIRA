@@ -169,10 +169,10 @@ def movements(request):
 @permitted("magazzino.view_lotto")
 def lot_detail(request, pk):
     lot = get_object_or_404(Lotto.objects.select_related("articolo", "fornitore"), pk=pk)
-    sales_movements = lot.movimenti.filter(tipo="VENDITA").select_related(
+    sales_movements = list(lot.movimenti.filter(tipo="VENDITA").select_related(
         "riga_vendita__vendita__cliente", "riga_vendita__vendita__registrata_da",
         "ubicazione_origine",
-    ).order_by("-data_ora", "-pk")
+    ).order_by("-data_ora", "-pk"))
     graph = None
     direction = "VALLE" if request.GET.get("direzione") == "VALLE" else "MONTE"
     if request.user.has_perm("auth.can_view_genealogy"):
@@ -199,6 +199,23 @@ def lot_detail(request, pk):
                         "tipo": "Storico", "url": "", "corrente": False}
             for w in graph["lavorazioni"]
         })
+        sale_edges = []
+        for movement in sales_movements:
+            sale = movement.riga_vendita.vendita
+            node_key = f"vendita:{sale.pk}"
+            nodes[node_key] = {
+                "titolo": f"Vendita {sale.numero_documento}",
+                "sottotitolo": f"Cliente: {sale.cliente.ragione_sociale} · {sale.data_documento.strftime('%d/%m/%Y')}",
+                "tipo": "Vendita",
+                "url": reverse("ui:sales"),
+                "corrente": False,
+            }
+            sale_edges.append({
+                "tipo": "VENDITA", "da": f"lotto:{lot.pk}", "a": node_key,
+                "quantita": str(movement.quantita), "movimenti_ids": [movement.pk],
+                "unita_misura": lot.articolo.unita_misura,
+            })
+        graph["legami_materiali"].extend(sale_edges)
         for edge in graph["legami_materiali"]:
             source, unit_in = labels.get(edge["da"], (edge["da"], ""))
             target, unit_out = labels.get(edge["a"], (edge["a"], ""))
