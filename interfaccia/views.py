@@ -133,9 +133,36 @@ def movements(request):
             | Q(lotto__articolo__descrizione__icontains=query)
             | Q(tipo__icontains=query)
         )
+    page = paged(request, records)
+    source_labels = {
+        "CARICO": "Fornitore / esterno",
+        "PRODUZIONE": "Produzione",
+        "RETTIFICA": "Rettifica in aumento",
+    }
+    destination_labels = {
+        "CONSUMO": "Produzione",
+        "VENDITA": "Cliente",
+        "SCARICO": "Smaltimento",
+        "SCARTO": "Scarto NC",
+        "RETTIFICA": "Rettifica in diminuzione",
+    }
+
+    def location_label(location, shelf, level):
+        if not location:
+            return ""
+        details = "/".join(value for value in (shelf, level) if value)
+        return f"{location.nome} · {details}" if details else location.nome
+
+    for movement in page:
+        movement.percorso_origine = location_label(
+            movement.ubicazione_origine, movement.scaffale_origine, movement.piano_origine,
+        ) or source_labels.get(movement.tipo, "Origine non indicata")
+        movement.percorso_destinazione = location_label(
+            movement.ubicazione_destinazione, movement.scaffale_destinazione, movement.piano_destinazione,
+        ) or destination_labels.get(movement.tipo, "Destinazione non indicata")
     return render(request, "interfaccia/movements.html", {
         "section": "magazzino", "warehouse_tab": "movimenti",
-        "page": paged(request, records), "q": query,
+        "page": page, "q": query,
     })
 
 
