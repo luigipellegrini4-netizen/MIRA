@@ -98,6 +98,21 @@ class OpenFillingForm(forms.Form):
         ).select_related("ricetta__articolo")
 
 
+class OpenLabelingForm(forms.Form):
+    lotto_origine = forms.ModelChoiceField(
+        label="Lotto invasettato", queryset=SessioneProduzioneSemplificata.objects.none(),
+    )
+    note = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["lotto_origine"].queryset = SessioneProduzioneSemplificata.objects.filter(
+            tipo="INVASETTAMENTO", stato="CHIUSA", lotto_prodotto__giacenze__quantita__gt=0,
+        ).exclude(sessioni_invasettamento__tipo="ETICHETTATURA").select_related(
+            "ricetta__articolo", "lotto_prodotto"
+        ).distinct()
+
+
 class PickingForm(forms.Form):
     numero_batch = forms.IntegerField(min_value=1)
     giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), label="Lotto e posizione")
@@ -451,4 +466,29 @@ class SemiFinishedSummaryForm(forms.Form):
             self.add_error("moca_giacenza", "Uno dei lotti non appartiene al tipo MOCA selezionato.")
         if stocks and data.get("moca_quantita") and sum(stock.quantita for stock in stocks) < data["moca_quantita"]:
             self.add_error("moca_giacenza", "I lotti selezionati non coprono la quantità MOCA indicata.")
+        return data
+
+
+class LabelingSummaryForm(forms.Form):
+    giacenza_origine = forms.ModelChoiceField(queryset=Giacenza.objects.none(), label="Lotto invasettato e posizione")
+    quantita_finale_kg = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità da etichettare (kg)")
+    data_scadenza = forms.DateField(label="Data di scadenza", widget=forms.DateInput(attrs={"type": "date"}))
+    destinazione = forms.ModelChoiceField(queryset=Ubicazione.objects.none(), label="Ubicazione prodotto finito")
+    scaffale = forms.CharField(required=False, max_length=30)
+    piano = forms.CharField(required=False, max_length=30)
+
+    def __init__(self, *args, session, **kwargs):
+        super().__init__(*args, **kwargs)
+        source_lot = session.lotto_origine.lotto_prodotto
+        self.fields["giacenza_origine"].queryset = Giacenza.objects.filter(
+            lotto=source_lot, quantita__gt=0, ubicazione__attiva=True,
+        ).select_related("lotto__articolo", "ubicazione")
+        self.fields["giacenza_origine"].label_from_instance = stock_label
+        self.fields["destinazione"].queryset = Ubicazione.objects.filter(attiva=True)
+        self.fields["data_scadenza"].initial = source_lot.data_scadenza
+
+    def clean(self):
+        data = super().clean()
+        if data.get("giacenza_origine") and data.get("quantita_finale_kg") and data["quantita_finale_kg"] > data["giacenza_origine"].quantita:
+            self.add_error("quantita_finale_kg", "La quantità supera la disponibilità della posizione scelta.")
         return data

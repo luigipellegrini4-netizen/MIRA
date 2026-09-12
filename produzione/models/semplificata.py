@@ -14,6 +14,7 @@ class SessioneProduzioneSemplificata(ValidatedModel):
         SEMILAVORATO = "SEMILAVORATO", "Semilavorato"
         ROBOQBO = "ROBOQBO", "RoboQbo"
         INVASETTAMENTO = "INVASETTAMENTO", "Invasettamento"
+        ETICHETTATURA = "ETICHETTATURA", "Etichettatura"
 
     class Stato(models.TextChoices):
         PIANIFICATA = "PIANIFICATA", "Pianificata"
@@ -106,6 +107,13 @@ class SessioneProduzioneSemplificata(ValidatedModel):
                 raise ValidationError("RoboQbo e invasettamento devono usare la stessa ricetta.")
             if self.numero_batch_previsti is not None:
                 raise ValidationError("Il numero di batch appartiene alla sessione RoboQbo.")
+        elif self.tipo == self.Tipo.ETICHETTATURA:
+            if not self.lotto_origine_id or self.lotto_origine.tipo != self.Tipo.INVASETTAMENTO:
+                raise ValidationError("L'etichettatura deve essere collegata a una sessione di invasettamento.")
+            if self.ricetta_id != self.lotto_origine.ricetta_id:
+                raise ValidationError("Invasettamento ed etichettatura devono usare lo stesso articolo.")
+            if self.numero_batch_previsti is not None:
+                raise ValidationError("L'etichettatura non richiede un numero di batch.")
 
 
 class PrelievoSessioneSemplificata(ValidatedModel):
