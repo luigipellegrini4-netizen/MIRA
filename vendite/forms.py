@@ -1,5 +1,5 @@
 from django import forms
-from django.forms import formset_factory
+from django.forms import BaseFormSet, formset_factory
 from django.db.models import Min
 
 from magazzino.models import Giacenza
@@ -19,9 +19,18 @@ class VenditaForm(forms.Form):
     note = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False)
 
 
+class SalesStockSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        if value and getattr(value, "instance", None):
+            option["attrs"]["data-available"] = value.instance.quantita
+            option["attrs"]["data-base-label"] = str(label)
+        return option
+
+
 class RigaVenditaForm(forms.Form):
-    giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), required=False, label="Lotto confezionato e posizione")
-    quantita = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, required=False)
+    giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), required=False, label="Lotto confezionato e posizione", widget=SalesStockSelect(attrs={"data-sales-stock": ""}))
+    quantita = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, required=False, widget=forms.NumberInput(attrs={"step": "0.000001", "data-sales-quantity": ""}))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -45,4 +54,24 @@ class RigaVenditaForm(forms.Form):
         return data
 
 
-RigheVenditaFormSet = formset_factory(RigaVenditaForm, extra=5, min_num=1, validate_min=True, max_num=30)
+class BaseRigheVenditaFormSet(BaseFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        totals = {}
+        stocks = {}
+        for form in self.forms:
+            stock, quantity = form.cleaned_data.get("giacenza"), form.cleaned_data.get("quantita")
+            if not stock or not quantity:
+                continue
+            stocks[stock.pk] = stock
+            totals[stock.pk] = totals.get(stock.pk, 0) + quantity
+        for stock_id, total in totals.items():
+            if total > stocks[stock_id].quantita:
+                raise forms.ValidationError(
+                    f"Le righe del lotto {stocks[stock_id].lotto.codice_lotto} superano la disponibilità: {stocks[stock_id].quantita:g}."
+                )
+
+
+RigheVenditaFormSet = formset_factory(RigaVenditaForm, formset=BaseRigheVenditaFormSet, extra=5, min_num=1, validate_min=True, max_num=30)
