@@ -41,6 +41,7 @@ class MovementService:
         Movimento.Tipo.QUARANTENA: "can_quarantine_stock",
         Movimento.Tipo.REINTEGRO: "can_reintegrate_stock",
         Movimento.Tipo.SCARTO: "can_scrap_nc_stock",
+        Movimento.Tipo.VENDITA: "can_manage_sales",
     }
 
     @classmethod
@@ -59,7 +60,7 @@ class MovementService:
             raise ValidationError("PRODUZIONE richiede un output o una sessione semplificata.")
         permission = cls.PERMISSIONS.get(tipo)
         if permission is None:
-            raise ValidationError("Tipo non disponibile nel servizio di magazzino: produzione e azioni NC richiedono i rispettivi servizi; vendita non implementata.")
+            raise ValidationError("Tipo non disponibile nel servizio di magazzino.")
         require_permission(actor, permission)
         if tipo == Movimento.Tipo.CONSUMO:
             source = Lotto.objects.select_related("lavorazione_origine__tipo_lavorazione").filter(pk=persisted_id(lotto, "Lotto")).first()

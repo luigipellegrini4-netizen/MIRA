@@ -7,6 +7,7 @@
 {% if perms.magazzino.view_giacenza %}<a class="{% if section == 'magazzino' %}active{% endif %}" href="{% url 'ui:magazzino' %}"><span aria-hidden="true">▦</span> Magazzino</a>{% endif %}
 {% if perms.auth.can_view_genealogy %}<a class="{% if section == 'tracciabilita' %}active{% endif %}" href="{% url 'ui:trace_search' %}"><span aria-hidden="true">⌕</span> Tracciabilità</a>{% endif %}
 {% if perms.produzione.view_sessioneproduzionesemplificata %}<a class="{% if section == 'produzione-semplice' %}active{% endif %}" href="{% url 'ui:simple_sessions' %}"><span aria-hidden="true">◆</span> Produzione</a>{% endif %}
+{% if perms.auth.can_manage_sales %}<a class="{% if section == 'vendite' %}active{% endif %}" href="{% url 'ui:sales' %}"><span aria-hidden="true">▣</span> Vendite</a>{% endif %}
 {% if perms.produzione.view_ricetta %}<a class="{% if section == 'ricette' %}active{% endif %}" href="{% url 'ui:recipes' %}"><span aria-hidden="true">≡</span> Ricette</a>{% endif %}
 {% if perms.qualita.view_nonconformita %}<a class="{% if section == 'qualita' %}active{% endif %}" href="{% url 'ui:qualita' %}"><span aria-hidden="true">◎</span> Qualità</a>{% endif %}
 {% if perms.anagrafiche.view_articolo %}<a class="{% if section == 'anagrafiche' %}active{% endif %}" href="{% url 'ui:anagrafiche' %}"><span aria-hidden="true">▤</span> Anagrafiche</a>{% endif %}

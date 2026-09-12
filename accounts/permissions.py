@@ -7,7 +7,8 @@ RM = "RESPONSABILE_MAGAZZINO"
 RQ = "RESPONSABILE_QUALITA"
 OP = "OPERATORE_PRODUZIONE"
 M = "MAGAZZINIERE"
-ROLES = (A, RP, RM, RQ, OP, M)
+RV = "RESPONSABILE_VENDITE"
+ROLES = (A, RP, RM, RQ, OP, M, RV)
 OPERATIVE_ROLES = frozenset((RP, RM, RQ, OP, M))
 
 # Consultazione estesa ai ruoli operativi; gestione limitata per anagrafica.
@@ -43,6 +44,7 @@ CAPABILITIES = {
     "can_verify_nc": ("Verificare non conformità", {RQ}),
     "can_close_nc": ("Chiudere non conformità", {RQ}),
     "can_view_genealogy": ("Consultare genealogia", set(OPERATIVE_ROLES)),
+    "can_manage_sales": ("Gestire clienti e vendite", {RV}),
 }
 
 

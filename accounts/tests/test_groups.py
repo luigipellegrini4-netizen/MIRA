@@ -21,7 +21,7 @@ class GroupIntegrationTests(TestCase):
         call_command("bootstrap_roles", verbosity=0)
         after = {g.name: set(g.permissions.values_list("pk", flat=True)) for g in Group.objects.all()}
         self.assertEqual(before, after)
-        self.assertEqual(len(after), 6)
+        self.assertEqual(len(after), 7)
 
     def test_admin_is_not_operator(self):
         user = self.user_in(A)

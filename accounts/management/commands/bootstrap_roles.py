@@ -7,7 +7,7 @@ from accounts.permissions import A, RP, RQ, CAPABILITIES, MODEL_MANAGERS, OPERAT
 
 
 class Command(BaseCommand):
-    help = "Crea i sei ruoli e sincronizza solo i permessi gestiti da MIRA."
+    help = "Crea i sette ruoli e sincronizza solo i permessi gestiti da MIRA."
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -99,4 +99,4 @@ class Command(BaseCommand):
                     group.permissions.add(permission)
                 else:
                     group.permissions.remove(permission)
-        self.stdout.write(self.style.SUCCESS("MIRA: sei ruoli inizializzati; permessi operativi separati."))
+        self.stdout.write(self.style.SUCCESS("MIRA: sette ruoli inizializzati; permessi operativi separati."))

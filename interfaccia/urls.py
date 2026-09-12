@@ -7,9 +7,15 @@ from . import supplier_views
 from . import article_views
 from . import catalog_views
 from . import lot_views
+from vendite import views as sales_views
 
 app_name = "ui"
 urlpatterns = [
+    path("vendite/", sales_views.sales, name="sales"),
+    path("vendite/nuova/", sales_views.sale_new, name="sale_new"),
+    path("vendite/clienti/", sales_views.customers, name="sales_customers"),
+    path("vendite/clienti/nuovo/", sales_views.customer_edit, name="sales_customer_new"),
+    path("vendite/clienti/<int:pk>/", sales_views.customer_edit, name="sales_customer_edit"),
     path("fornitori/", supplier_views.suppliers, name="suppliers"),
     path("fornitori/nuovo/", supplier_views.supplier_new, name="supplier_new"),
     path("fornitori/<int:pk>/", supplier_views.supplier_edit, name="supplier_edit"),
