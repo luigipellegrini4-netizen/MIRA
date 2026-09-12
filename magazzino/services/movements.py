@@ -36,6 +36,7 @@ class MovementService:
         Movimento.Tipo.TRASFERIMENTO: "can_transfer_stock",
         Movimento.Tipo.CONSUMO: "can_record_production_consumption",
         Movimento.Tipo.RETTIFICA: "can_adjust_inventory",
+        Movimento.Tipo.SCARICO: "can_adjust_inventory",
         Movimento.Tipo.PRODUZIONE: "can_execute_production",
         Movimento.Tipo.QUARANTENA: "can_quarantine_stock",
         Movimento.Tipo.REINTEGRO: "can_reintegrate_stock",
@@ -83,8 +84,10 @@ class MovementService:
             raise ValidationError("La motivazione deve essere testuale.")
         if tipo == Movimento.Tipo.RETTIFICA and not note.strip():
             raise ValidationError("La rettifica richiede una motivazione.")
+        if tipo == Movimento.Tipo.SCARICO and not note.strip():
+            raise ValidationError("Lo scarico materiale richiede una motivazione.")
         incoming = tipo in {Movimento.Tipo.CARICO, Movimento.Tipo.PRODUZIONE} and origine is None and destinazione is not None
-        outgoing = tipo in {Movimento.Tipo.CONSUMO, Movimento.Tipo.SCARTO} and origine is not None and destinazione is None
+        outgoing = tipo in {Movimento.Tipo.CONSUMO, Movimento.Tipo.SCARTO, Movimento.Tipo.SCARICO} and origine is not None and destinazione is None
         transfer = tipo in {Movimento.Tipo.TRASFERIMENTO, Movimento.Tipo.QUARANTENA, Movimento.Tipo.REINTEGRO} and origine is not None and destinazione is not None and origine != destinazione
         adjustment = tipo == Movimento.Tipo.RETTIFICA and ((origine is None) != (destinazione is None))
         if not any((incoming, outgoing, transfer, adjustment)):

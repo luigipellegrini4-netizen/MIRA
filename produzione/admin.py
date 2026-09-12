@@ -365,7 +365,7 @@ class NonConformitaSessioneSemplificataAdmin(admin.ModelAdmin):
 
 @admin.register(AzioneNCSessioneSemplificata)
 class AzioneNCSessioneSemplificataAdmin(admin.ModelAdmin):
-    list_display = ("id", "non_conformita", "registrata_da", "registrata_il")
+    list_display = ("id", "non_conformita", "tipo", "movimento", "registrata_da", "registrata_il")
     search_fields = ("non_conformita__sessione__lotto_codice", "descrizione")
 
 

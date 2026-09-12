@@ -281,7 +281,7 @@ def simple_case_detail(request, pk):
     )
     return render(request, "interfaccia/simple_case.html", {
         "section": "qualita", "case": case,
-        "actions": case.azioni.select_related("registrata_da"),
+        "actions": case.azioni.select_related("registrata_da", "movimento__lotto__articolo", "movimento__ubicazione_origine"),
         "verifications": case.verifiche.select_related("verificata_da"),
     })
 
@@ -299,6 +299,7 @@ OPERATIONS = {
     "ricevimento": ("Ricevi merce", "can_receive_goods", "magazzino"),
     "trasferimento": ("Trasferisci merce", "can_transfer_stock", "magazzino"),
     "rettifica": ("Rettifica inventariale", "can_adjust_inventory", "magazzino"),
+    "scarico": ("Scarico materiale", "can_adjust_inventory", "magazzino"),
     "nc_apri": ("Apri non conformità", "can_open_nc", "qualita"),
     "nc_gestisci": ("Prendi in gestione", "can_manage_nc", "qualita"),
     "nc_azione": ("Registra azione correttiva", "can_manage_nc", "qualita"),
@@ -315,18 +316,19 @@ def execute(request, op, d, work=None, case=None):
         ReceivingService.receive(actor=actor, articolo=d["articolo"], fornitore=d["fornitore"], codice_lotto=d["codice_lotto"],
             quantita_ricevuta=d["quantita"], data_scadenza=d["data_scadenza"], numero_ddt=d["numero_ddt"],
             destinazioni=[Allocation(position(d, "destinazione"), d["quantita"])], note=note)
-    elif op in {"rettifica", "trasferimento"}:
-        if op == "trasferimento":
+    elif op in {"rettifica", "trasferimento", "scarico"}:
+        if op in {"trasferimento", "scarico"}:
             stock = d["stock"]
             lot = stock.lotto
             origin = Position(stock.ubicazione_id, stock.scaffale, stock.piano)
-            target = position(d, "destinazione")
+            target = position(d, "destinazione") if op == "trasferimento" else None
         else:
             stock = d["stock"]
             lot = stock.lotto
             selected = Position(stock.ubicazione_id, stock.scaffale, stock.piano)
             origin, target = (selected, None) if d["verso"] == "uscita" else (None, selected)
-        MovementService.register(actor=actor, lotto=lot, tipo="RETTIFICA" if op == "rettifica" else "TRASFERIMENTO",
+        movement_type = {"rettifica": "RETTIFICA", "trasferimento": "TRASFERIMENTO", "scarico": "SCARICO"}[op]
+        MovementService.register(actor=actor, lotto=lot, tipo=movement_type,
             quantita=d["quantita"], origine=origin, destinazione=target, note=note)
     elif op == "pianifica":
         cycle = ProductionCycleService.create(actor=actor, articolo=d["articolo"], note=note)
@@ -385,7 +387,7 @@ def operation(request, op, pk=None):
         raise Http404
     back = reverse("ui:work", args=[work.pk]) if work else reverse("ui:case", args=[case.pk]) if case else reverse("ui:" + section)
     initial = {"invio": token_for(request)}
-    if op == "trasferimento" and request.method == "GET":
+    if op in {"trasferimento", "scarico"} and request.method == "GET":
         initial["articolo"] = request.GET.get("articolo", "")
     if op == "rettifica" and request.method == "GET":
         initial["ubicazione"] = request.GET.get("ubicazione", "")
@@ -403,7 +405,7 @@ def operation(request, op, pk=None):
     return render(request, "interfaccia/form.html", {
         "title": title, "section": section, "form": form, "back": back,
         "work": work, "case": case,
-        "warehouse_tab": op if op in {"trasferimento", "rettifica"} else "",
+        "warehouse_tab": op if op in {"trasferimento", "rettifica", "scarico"} else "",
     })
 
 

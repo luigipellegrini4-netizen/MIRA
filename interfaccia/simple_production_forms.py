@@ -274,8 +274,38 @@ class SimpleNCTakeChargeForm(forms.Form):
 
 
 class SimpleNCActionForm(forms.Form):
+    tipo = forms.ChoiceField(
+        label="Tipo di azione", choices=[("AZIONE", "Azione documentale"), ("SCARTO", "Scarto dal magazzino")],
+        widget=forms.Select(attrs={"data-nc-action-type": ""}),
+    )
     descrizione = forms.CharField(label="Azione eseguita", widget=forms.Textarea(attrs={"rows": 4}))
+    origine_stock = forms.ModelChoiceField(
+        queryset=Giacenza.objects.none(), required=False, label="Lotto e posizione da scaricare",
+        help_text="Lo scarto è disponibile quando il lotto prodotto è presente in magazzino.",
+    )
+    quantita = forms.DecimalField(required=False, min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità da scartare")
     note = forms.CharField(widget=forms.Textarea(attrs={"rows": 2}), required=False)
+
+    def __init__(self, *args, case, **kwargs):
+        super().__init__(*args, **kwargs)
+        if case.sessione.lotto_prodotto_id:
+            self.fields["origine_stock"].queryset = Giacenza.objects.filter(
+                lotto_id=case.sessione.lotto_prodotto_id, quantita__gt=0, ubicazione__attiva=True,
+            ).select_related("lotto__articolo", "ubicazione").order_by("ubicazione__codice", "scaffale", "piano")
+        self.fields["origine_stock"].label_from_instance = stock_label
+        for name in ("origine_stock", "quantita"):
+            self.fields[name].widget.attrs["data-nc-action-for"] = "SCARTO"
+
+    def clean(self):
+        data = super().clean()
+        if data.get("tipo") == "SCARTO":
+            if not data.get("origine_stock"):
+                self.add_error("origine_stock", "Selezionare il lotto e la posizione.")
+            if not data.get("quantita"):
+                self.add_error("quantita", "Indicare la quantità da scartare.")
+            elif data.get("origine_stock") and data["quantita"] > data["origine_stock"].quantita:
+                self.add_error("quantita", f"Disponibilità insufficiente: massimo {data['origine_stock'].quantita:g}.")
+        return data
 
 
 class SimpleNCVerificationForm(forms.Form):

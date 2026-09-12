@@ -237,13 +237,32 @@ class ProduzioneSemplificataService:
 
     @staticmethod
     @transaction.atomic
-    def registra_azione_nc(*, actor, non_conformita, descrizione, note=""):
+    def registra_azione_nc(*, actor, non_conformita, tipo, descrizione, origine_stock=None,
+                           quantita=None, note=""):
         require_permission(actor, "can_manage_nc")
         nc = NonConformitaSessioneSemplificata.objects.select_for_update().get(pk=non_conformita.pk)
         if nc.stato != nc.Stato.IN_GESTIONE:
             raise ValidationError("Prendere prima in carico la NC.")
+        movement = None
+        if tipo == AzioneNCSessioneSemplificata.Tipo.SCARTO:
+            from magazzino.models import Movimento
+            from magazzino.services import MovementService, Position
+            from qualita.nc_protections import _movement_for_nc
+            if not origine_stock or not quantita:
+                raise ValidationError("Per lo scarto indicare posizione e quantità.")
+            if not nc.sessione.lotto_prodotto_id or origine_stock.lotto_id != nc.sessione.lotto_prodotto_id:
+                raise ValidationError("La posizione deve contenere il lotto prodotto collegato alla NC.")
+            source = Position(origine_stock.ubicazione_id, origine_stock.scaffale, origine_stock.piano)
+            with _movement_for_nc(-nc.pk, Movimento.Tipo.SCARTO):
+                movement = MovementService.register(
+                    actor=actor, lotto=origine_stock.lotto, tipo=Movimento.Tipo.SCARTO,
+                    quantita=quantita, origine=source, note=f"Scarto NC P-{nc.pk}: {descrizione}",
+                )
+        elif tipo != AzioneNCSessioneSemplificata.Tipo.AZIONE:
+            raise ValidationError("Tipo di azione non riconosciuto.")
         return _record(AzioneNCSessioneSemplificata(
-            non_conformita=nc, descrizione=descrizione, registrata_da=actor, note=note,
+            non_conformita=nc, tipo=tipo, descrizione=descrizione, movimento=movement,
+            registrata_da=actor, note=note,
         ))
 
     @staticmethod

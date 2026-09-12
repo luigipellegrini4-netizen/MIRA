@@ -272,7 +272,8 @@ def manage_nc(request, pk, action):
     if not request.user.has_perm(permission):
         raise PermissionDenied
     case = get_object_or_404(NonConformitaSessioneSemplificata, pk=pk)
-    form = form_class(request.POST if request.method == "POST" else None)
+    form_kwargs = {"case": case} if action == "azione" else {}
+    form = form_class(request.POST if request.method == "POST" else None, **form_kwargs)
     if request.method == "POST" and form.is_valid():
         try:
             service(actor=request.user, non_conformita=case, **form.cleaned_data)

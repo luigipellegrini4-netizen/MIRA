@@ -57,6 +57,7 @@ class Movimento(HistoricalModel):
         QUARANTENA = "QUARANTENA", "Quarantena"
         REINTEGRO = "REINTEGRO", "Reintegro"
         SCARTO = "SCARTO", "Scarto"
+        SCARICO = "SCARICO", "Scarico materiale"
         RETTIFICA = "RETTIFICA", "Rettifica"
 
     data_ora = models.DateTimeField(default=timezone.now)
@@ -87,11 +88,12 @@ class Movimento(HistoricalModel):
             models.CheckConstraint(condition=Q(ubicazione_origine__isnull=False) | Q(ubicazione_destinazione__isnull=False), name="movimento_almeno_un_estremo"),
             models.CheckConstraint(condition=(
                 Q(tipo__in=["CARICO", "PRODUZIONE"], ubicazione_origine__isnull=True, ubicazione_destinazione__isnull=False)
-                | Q(tipo__in=["CONSUMO", "VENDITA", "SCARTO"], ubicazione_origine__isnull=False, ubicazione_destinazione__isnull=True)
+                | Q(tipo__in=["CONSUMO", "VENDITA", "SCARTO", "SCARICO"], ubicazione_origine__isnull=False, ubicazione_destinazione__isnull=True)
                 | Q(tipo__in=["TRASFERIMENTO", "QUARANTENA", "REINTEGRO"], ubicazione_origine__isnull=False, ubicazione_destinazione__isnull=False)
                 | (Q(tipo="RETTIFICA") & (Q(ubicazione_origine__isnull=True, ubicazione_destinazione__isnull=False) | Q(ubicazione_origine__isnull=False, ubicazione_destinazione__isnull=True)))
             ), name="movimento_direzione_coerente"),
             models.CheckConstraint(condition=~Q(tipo="RETTIFICA") | ~Q(note=""), name="movimento_rettifica_motivata"),
+            models.CheckConstraint(condition=~Q(tipo="SCARICO") | ~Q(note=""), name="movimento_scarico_motivato"),
             models.CheckConstraint(condition=Q(ubicazione_origine__isnull=False) | Q(scaffale_origine="", piano_origine=""), name="movimento_origine_codici"),
             models.CheckConstraint(condition=Q(ubicazione_destinazione__isnull=False) | Q(scaffale_destinazione="", piano_destinazione=""), name="movimento_destinazione_codici"),
             models.CheckConstraint(condition=~Q(ubicazione_origine=F("ubicazione_destinazione"), scaffale_origine=F("scaffale_destinazione"), piano_origine=F("piano_destinazione")), name="movimento_posizioni_distinte"),
@@ -107,6 +109,8 @@ class Movimento(HistoricalModel):
                 raise ValidationError("Scaffale/piano richiedono la relativa ubicazione.")
         if self.tipo == self.Tipo.RETTIFICA and not self.note.strip():
             raise ValidationError({"note": "La rettifica richiede una motivazione."})
+        if self.tipo == self.Tipo.SCARICO and not self.note.strip():
+            raise ValidationError({"note": "Lo scarico materiale richiede una motivazione."})
         if self.input_lavorazione_id and self.output_lavorazione_id:
             raise ValidationError("Un movimento non può riferirsi sia a input sia a output.")
         for name, expected_type in (("input_lavorazione", self.Tipo.CONSUMO), ("output_lavorazione", self.Tipo.PRODUZIONE)):

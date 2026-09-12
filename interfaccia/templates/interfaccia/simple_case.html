@@ -56,7 +56,7 @@
 <div class="two-columns space-top">
   <section class="panel">
     <div class="panel-head"><h2>Azioni registrate</h2></div>
-    {% for action in actions %}<div class="timeline-item"><small>{{ action.registrata_il|date:'d/m/Y H:i' }} · {{ action.registrata_da.username }}</small><p>{{ action.descrizione|linebreaksbr }}</p>{% if action.note %}<small>{{ action.note }}</small>{% endif %}</div>{% empty %}<div class="empty">Nessuna azione registrata.</div>{% endfor %}
+    {% for action in actions %}<div class="timeline-item"><small>{{ action.registrata_il|date:'d/m/Y H:i' }} · {{ action.registrata_da.username }}</small><h3>{{ action.get_tipo_display }}</h3><p>{{ action.descrizione|linebreaksbr }}</p>{% if action.movimento %}<p><strong>Scartati {{ action.movimento.quantita|floatformat:'-6' }} {{ action.movimento.lotto.articolo.unita_misura }}</strong> · {{ action.movimento.ubicazione_origine.codice }}{% if action.movimento.scaffale_origine %}/{{ action.movimento.scaffale_origine }}{% endif %}{% if action.movimento.piano_origine %}-{{ action.movimento.piano_origine }}{% endif %}</p>{% endif %}{% if action.note %}<small>{{ action.note }}</small>{% endif %}</div>{% empty %}<div class="empty">Nessuna azione registrata.</div>{% endfor %}
   </section>
   <section class="panel">
     <div class="panel-head"><h2>Verifiche</h2></div>

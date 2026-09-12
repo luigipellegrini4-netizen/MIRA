@@ -355,14 +355,24 @@ class NonConformitaSessioneSemplificata(ValidatedModel):
 
 
 class AzioneNCSessioneSemplificata(ValidatedModel):
+    class Tipo(models.TextChoices):
+        AZIONE = "AZIONE", "Azione documentale"
+        SCARTO = "SCARTO", "Scarto dal magazzino"
+
     non_conformita = models.ForeignKey(NonConformitaSessioneSemplificata, on_delete=models.PROTECT, related_name="azioni")
+    tipo = models.CharField(max_length=10, choices=Tipo.choices, default=Tipo.AZIONE)
     descrizione = models.TextField()
+    movimento = models.OneToOneField("magazzino.Movimento", null=True, blank=True, on_delete=models.PROTECT, related_name="azione_nc_sessione_semplificata")
     registrata_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="azioni_nc_semplificate")
     registrata_il = models.DateTimeField(default=timezone.now)
     note = models.TextField(blank=True)
 
     class Meta:
         ordering = ["registrata_il", "pk"]
+        constraints = [models.CheckConstraint(
+            condition=(Q(tipo="SCARTO", movimento__isnull=False) | Q(tipo="AZIONE", movimento__isnull=True)),
+            name="azione_nc_semplice_movimento_coerente",
+        )]
 
     def clean(self):
         super().clean()
@@ -370,6 +380,8 @@ class AzioneNCSessioneSemplificata(ValidatedModel):
             raise ValidationError("Descrivere l'azione eseguita.")
         if self.non_conformita_id and self.non_conformita.stato != NonConformitaSessioneSemplificata.Stato.IN_GESTIONE:
             raise ValidationError("La NC deve essere in gestione.")
+        if (self.tipo == self.Tipo.SCARTO) != bool(self.movimento_id):
+            raise ValidationError("Lo scarto deve essere collegato al relativo movimento di magazzino.")
 
 
 class VerificaNCSessioneSemplificata(ValidatedModel):

@@ -54,7 +54,7 @@ class OperationForm(forms.Form):
             f["data_scadenza"] = forms.DateField(label="Scadenza", required=False, widget=forms.DateInput(attrs={"type": "date"}))
             f["quantita"] = amount("Quantità ricevuta · unità dell'articolo")
             position_fields(f, "destinazione", "Destinazione")
-        elif operation == "trasferimento":
+        elif operation in {"trasferimento", "scarico"}:
             f["articolo"] = forms.ModelChoiceField(
                 Articolo.objects.filter(attivo=True, lotti__giacenze__quantita__gt=0).distinct().order_by("codice"),
                 label="Articolo",
@@ -74,8 +74,9 @@ class OperationForm(forms.Form):
                 stocks, label="Lotto, ubicazione e disponibilità",
                 empty_label="Seleziona lotto e posizione" if article_id else "Scegli prima l’articolo",
             )
-            f["quantita"] = amount("Quantità da trasferire · unità dell'articolo")
-            position_fields(f, "destinazione", "Destinazione")
+            f["quantita"] = amount(("Quantità da trasferire" if operation == "trasferimento" else "Quantità da scaricare") + " · unità dell'articolo")
+            if operation == "trasferimento":
+                position_fields(f, "destinazione", "Destinazione")
         elif operation == "rettifica":
             f["ubicazione"] = forms.ModelChoiceField(
                 Ubicazione.objects.filter(attiva=True, giacenze__quantita__gt=0).distinct().order_by("codice"),
@@ -189,12 +190,12 @@ class OperationForm(forms.Form):
         elif operation == "nc_verifica":
             f["esito"] = forms.ChoiceField(label="Esito", choices=[("EFFICACE", "Efficace"), ("NON_EFFICACE", "Non efficace")])
             f["descrizione"] = forms.CharField(label="Verifica eseguita", widget=forms.Textarea(attrs={"rows": 3}))
-        f["note"] = forms.CharField(label="Motivazione" if operation in {"rettifica", "interrompi", "nc_chiudi"} else "Note",
-            required=operation in {"rettifica", "interrompi", "nc_chiudi"}, widget=forms.Textarea(attrs={"rows": 3}))
+        f["note"] = forms.CharField(label="Motivazione" if operation in {"rettifica", "scarico", "interrompi", "nc_chiudi"} else "Note",
+            required=operation in {"rettifica", "scarico", "interrompi", "nc_chiudi"}, widget=forms.Textarea(attrs={"rows": 3}))
 
     def clean(self):
         data = super().clean()
-        if self.operation == "trasferimento":
+        if self.operation in {"trasferimento", "scarico"}:
             stock, article = data.get("stock"), data.get("articolo")
             if stock and article and stock.lotto.articolo_id != article.pk:
                 self.add_error("stock", "La posizione non appartiene all’articolo scelto.")
