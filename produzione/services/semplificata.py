@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 import re
 from datetime import datetime
+from decimal import Decimal
 
 from accounts.permissions import require_permission
 from produzione.models import (
@@ -26,22 +27,41 @@ def _record(record):
 
 class ProduzioneSemplificataService:
     @staticmethod
-    def _consuma_giacenza(*, actor, sessione, giacenza, quantita, note):
+    def _consuma_giacenze(*, actor, sessione, giacenze, quantita, note):
         from anagrafiche.models import CategoriaArticolo
         from magazzino.models import Movimento
         from magazzino.services import MovementService, Position
-        stock = giacenza.__class__.objects.select_related("lotto__articolo", "ubicazione").get(pk=giacenza.pk)
-        moca_categories = CategoriaArticolo.objects.filter(codice__iexact="MOCA", attiva=True)
-        if not any(stock.lotto.articolo.appartiene_a_categoria_o_discendenti(category) for category in moca_categories):
-            raise ValidationError("Il lotto selezionato non appartiene alla categoria MOCA.")
-        movement = MovementService.register(
-            actor=actor, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO, quantita=quantita,
-            origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano), note=note,
-        )
-        return _record(PrelievoSessioneSemplificata(
-            sessione=sessione, lotto=stock.lotto, movimento=movement, quantita_kg=quantita,
-            numero_batch=None, da_ricetta=False, registrato_da=actor, note=note,
+        selected = list(giacenze)
+        if not selected:
+            raise ValidationError("Selezionare almeno un lotto MOCA.")
+        stock_model = selected[0].__class__
+        stocks = list(stock_model.objects.select_for_update().filter(
+            pk__in=[stock.pk for stock in selected], quantita__gt=0,
+        ).select_related("lotto__articolo", "ubicazione").order_by(
+            "lotto__data_scadenza", "lotto__codice_lotto", "ubicazione__codice", "scaffale", "piano", "pk",
         ))
+        amount = Decimal(str(quantita))
+        if sum((stock.quantita for stock in stocks), Decimal("0")) < amount:
+            raise ValidationError("La disponibilità complessiva dei lotti MOCA selezionati è insufficiente.")
+        moca_categories = CategoriaArticolo.objects.filter(codice__iexact="MOCA", attiva=True)
+        if any(not any(stock.lotto.articolo.appartiene_a_categoria_o_discendenti(category) for category in moca_categories) for stock in stocks):
+            raise ValidationError("Il lotto selezionato non appartiene alla categoria MOCA.")
+        rows = []
+        remaining = amount
+        for stock in stocks:
+            if remaining <= 0:
+                break
+            used = min(stock.quantita, remaining)
+            movement = MovementService.register(
+                actor=actor, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO, quantita=used,
+                origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano), note=note,
+            )
+            rows.append(_record(PrelievoSessioneSemplificata(
+                sessione=sessione, lotto=stock.lotto, movimento=movement, quantita_kg=used,
+                numero_batch=None, da_ricetta=False, registrato_da=actor, note=note,
+            )))
+            remaining -= used
+        return rows
 
     @staticmethod
     def _code(*, tipo, ricetta, giorno=None):
@@ -318,8 +338,8 @@ class ProduzioneSemplificataService:
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
         if current.tipo != "SEMILAVORATO" or current.stato != "APERTA":
             raise ValidationError("La sessione Semilavorati non è aperta.")
-        ProduzioneSemplificataService._consuma_giacenza(
-            actor=actor, sessione=current, giacenza=moca_giacenza, quantita=moca_quantita,
+        ProduzioneSemplificataService._consuma_giacenze(
+            actor=actor, sessione=current, giacenze=moca_giacenza, quantita=moca_quantita,
             note=f"MOCA utilizzato nella chiusura {current.lotto_codice}",
         )
         lot = Lotto.objects.create(articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
@@ -342,12 +362,12 @@ class ProduzioneSemplificataService:
         if current.tipo != "INVASETTAMENTO" or current.stato != "APERTA":
             raise ValidationError("La sessione di invasettamento non è aperta.")
         vasetti_totali = vasetti_buoni + vasetti_scartati + vasetti_quarantena
-        ProduzioneSemplificataService._consuma_giacenza(
-            actor=actor, sessione=current, giacenza=vasetti_giacenza, quantita=vasetti_totali,
+        ProduzioneSemplificataService._consuma_giacenze(
+            actor=actor, sessione=current, giacenze=vasetti_giacenza, quantita=vasetti_totali,
             note=f"Vasetti utilizzati nella chiusura {current.lotto_codice}",
         )
-        ProduzioneSemplificataService._consuma_giacenza(
-            actor=actor, sessione=current, giacenza=capsule_giacenza,
+        ProduzioneSemplificataService._consuma_giacenze(
+            actor=actor, sessione=current, giacenze=capsule_giacenza,
             quantita=vasetti_totali + capsule_difettose,
             note=f"Capsule utilizzate nella chiusura {current.lotto_codice}",
         )

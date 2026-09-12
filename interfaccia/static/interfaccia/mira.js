@@ -42,22 +42,23 @@ document.querySelectorAll('[data-stock-article]').forEach(articleSelector => {
   const stockSelector = articleSelector.form.querySelector(`[data-stock-for="${key}"]`);
   if (!stockSelector) return;
   const allOptions = Array.from(stockSelector.options).map(option => option.cloneNode(true));
-  const updateStocks = () => {
+  const updateStocks = autoSelect => {
     const articleId = articleSelector.value;
-    const previousValue = stockSelector.value;
+    const previousValues = new Set(Array.from(stockSelector.selectedOptions).map(option => option.value));
     const options = allOptions
       .filter(option => !option.value || option.dataset.article === articleId)
       .map(option => option.cloneNode(true));
     stockSelector.replaceChildren(...options);
     stockSelector.disabled = !articleId;
-    if (articleId && options.some(option => option.value === previousValue)) {
-      stockSelector.value = previousValue;
-    } else {
-      stockSelector.value = '';
+    if (articleId) {
+      const hasPrevious = options.some(option => option.value && previousValues.has(option.value));
+      options.forEach(option => {
+        option.selected = option.value && (hasPrevious ? previousValues.has(option.value) : Boolean(autoSelect && stockSelector.multiple));
+      });
     }
   };
-  articleSelector.addEventListener('change', updateStocks);
-  updateStocks();
+  articleSelector.addEventListener('change', () => updateStocks(true));
+  updateStocks(false);
 });
 
 document.querySelectorAll('[data-nc-action-type]').forEach(selector => {

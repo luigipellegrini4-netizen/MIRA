@@ -45,6 +45,14 @@ class StockByArticleSelect(forms.Select):
         return option
 
 
+class StockByArticleSelectMultiple(forms.SelectMultiple):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        if value and getattr(value, "instance", None):
+            option["attrs"]["data-article"] = value.instance.lotto.articolo_id
+        return option
+
+
 class OpenRoboQboForm(forms.Form):
     ricetta = forms.ModelChoiceField(queryset=Ricetta.objects.none())
     numero_batch_previsti = forms.IntegerField(min_value=1)
@@ -336,23 +344,29 @@ class SummaryForm(forms.Form):
             self.fields[f"{prefix}_articolo"] = forms.ModelChoiceField(
                 queryset=articles, label=f"Tipo di {label.lower()}", widget=forms.Select(attrs={"data-stock-article": prefix})
             )
-            self.fields[f"{prefix}_giacenza"] = forms.ModelChoiceField(
-                queryset=stocks, label=f"Lotto e posizione {label.lower()}",
-                widget=StockByArticleSelect(attrs={"data-stock-for": prefix}),
-                help_text=f"Prima scegli il tipo di {label.lower()}: saranno mostrati soltanto i suoi lotti disponibili.",
+            self.fields[f"{prefix}_giacenza"] = forms.ModelMultipleChoiceField(
+                queryset=stocks, label=f"Lotti e posizioni {label.lower()}",
+                widget=StockByArticleSelectMultiple(attrs={"data-stock-for": prefix, "size": 6}),
+                help_text=f"Seleziona uno o più lotti. MIRA li scaricherà nell’ordine proposto fino a coprire la quantità necessaria.",
             )
             self.fields[f"{prefix}_giacenza"].label_from_instance = stock_label
 
     def clean(self):
         data = super().clean()
         for prefix in ("vasetti", "capsule"):
-            article, stock = data.get(f"{prefix}_articolo"), data.get(f"{prefix}_giacenza")
-            if article and stock and stock.lotto.articolo_id != article.pk:
-                self.add_error(f"{prefix}_giacenza", "Il lotto non appartiene al tipo MOCA selezionato.")
+            article, stocks = data.get(f"{prefix}_articolo"), data.get(f"{prefix}_giacenza")
+            if article and stocks and any(stock.lotto.articolo_id != article.pk for stock in stocks):
+                self.add_error(f"{prefix}_giacenza", "Uno dei lotti non appartiene al tipo MOCA selezionato.")
         if data.get("vasetti_articolo") and data.get("vasetti_articolo") == data.get("capsule_articolo"):
             self.add_error("capsule_articolo", "Vasetti e capsule devono essere articoli distinti.")
         if sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati", "vasetti_quarantena")) == 0:
             self.add_error("vasetti_buoni", "Indicare almeno un vasetto prodotto.")
+        jars = sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati", "vasetti_quarantena"))
+        caps = jars + (data.get("capsule_difettose") or 0)
+        for prefix, required in (("vasetti", jars), ("capsule", caps)):
+            stocks = data.get(f"{prefix}_giacenza")
+            if stocks and sum(stock.quantita for stock in stocks) < required:
+                self.add_error(f"{prefix}_giacenza", f"I lotti selezionati non coprono la quantità richiesta: {required} PZ.")
         return data
 
 
@@ -366,9 +380,10 @@ class SemiFinishedSummaryForm(forms.Form):
     scaffale = forms.CharField(required=False, max_length=30)
     piano = forms.CharField(required=False, max_length=30)
     moca_articolo = forms.ModelChoiceField(queryset=Articolo.objects.none(), label="Tipo di MOCA", widget=forms.Select(attrs={"data-stock-article": "moca"}))
-    moca_giacenza = forms.ModelChoiceField(
-        queryset=Giacenza.objects.none(), label="Lotto e posizione MOCA",
-        widget=StockByArticleSelect(attrs={"data-stock-for": "moca"}),
+    moca_giacenza = forms.ModelMultipleChoiceField(
+        queryset=Giacenza.objects.none(), label="Lotti e posizioni MOCA",
+        widget=StockByArticleSelectMultiple(attrs={"data-stock-for": "moca", "size": 6}),
+        help_text="Seleziona uno o più lotti. MIRA li scaricherà nell’ordine proposto fino alla quantità indicata.",
     )
     moca_quantita = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità MOCA da prelevare")
 
@@ -393,7 +408,9 @@ class SemiFinishedSummaryForm(forms.Form):
 
     def clean(self):
         data = super().clean()
-        article, stock = data.get("moca_articolo"), data.get("moca_giacenza")
-        if article and stock and stock.lotto.articolo_id != article.pk:
-            self.add_error("moca_giacenza", "Il lotto non appartiene al tipo MOCA selezionato.")
+        article, stocks = data.get("moca_articolo"), data.get("moca_giacenza")
+        if article and stocks and any(stock.lotto.articolo_id != article.pk for stock in stocks):
+            self.add_error("moca_giacenza", "Uno dei lotti non appartiene al tipo MOCA selezionato.")
+        if stocks and data.get("moca_quantita") and sum(stock.quantita for stock in stocks) < data["moca_quantita"]:
+            self.add_error("moca_giacenza", "I lotti selezionati non coprono la quantità MOCA indicata.")
         return data
