@@ -20,6 +20,16 @@ document.querySelector('[data-add-planned-row]')?.addEventListener('click', even
 });
 
 document.querySelector('[data-picking-rows]')?.addEventListener('click', event => {
+  const removeButton = event.target.closest('[data-remove-picking-row]');
+  if (removeButton) {
+    const row = removeButton.closest('[data-picking-row]');
+    const deletion = row.querySelector('input[name$="-DELETE"]');
+    if (deletion) {
+      deletion.value = 'on';
+      row.hidden = true;
+    }
+    return;
+  }
   const button = event.target.closest('[data-add-picking-row]');
   if (!button) return;
   const rows = button.closest('[data-picking-rows]');
@@ -32,6 +42,8 @@ document.querySelector('[data-picking-rows]')?.addEventListener('click', event =
   clone.querySelectorAll('.errorlist').forEach(error => error.remove());
   clone.querySelectorAll('select').forEach(select => { select.selectedIndex = 0; });
   clone.querySelectorAll('input:not([type="hidden"])').forEach(input => { input.value = ''; });
+  const deletion = clone.querySelector('input[name$="-DELETE"]');
+  if (deletion) deletion.value = '';
   source.after(clone);
   total.value = String(index + 1);
 });

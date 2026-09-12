@@ -167,27 +167,17 @@ def picking(request, pk):
         formset = SemiFinishedPickingFormSet(request.POST if request.method == "POST" else None, initial=initial)
         error = ""
         if request.method == "POST" and not already_recorded and formset.is_valid():
-            required_by_article = {row["articolo"].pk: row["quantita"] for row in requirements}
-            expected_articles = set(required_by_article)
-            submitted_articles = {row["articolo"].pk for row in formset.cleaned_data}
+            active_rows = [row for row in formset.cleaned_data if not row.get("DELETE")]
+            expected_articles = {row["articolo"].pk for row in requirements}
+            submitted_articles = {row["articolo"].pk for row in active_rows}
             if submitted_articles != expected_articles:
                 error = "Confermare almeno un prelievo per ogni ingrediente della ricetta."
-            elif len({row["giacenza"].pk for row in formset.cleaned_data}) != len(formset.cleaned_data):
+            elif len({row["giacenza"].pk for row in active_rows}) != len(active_rows):
                 error = "La stessa giacenza è stata selezionata più di una volta. Unisci le quantità in una sola riga."
-            else:
-                submitted_totals = {article_id: 0 for article_id in expected_articles}
-                for row in formset.cleaned_data:
-                    submitted_totals[row["articolo"].pk] += row["quantita_kg"]
-                differences = [
-                    article_id for article_id, required in required_by_article.items()
-                    if submitted_totals[article_id] != required
-                ]
-                if differences:
-                    error = "Per ogni ingrediente, la somma dei lotti deve coincidere con il fabbisogno indicato."
             if not error:
                 try:
                     with transaction.atomic():
-                        for data in formset.cleaned_data:
+                        for data in active_rows:
                             stock = data["giacenza"]
                             movement = MovementService.register(
                                 actor=request.user, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO,

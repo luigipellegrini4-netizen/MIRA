@@ -136,7 +136,8 @@ class SemiFinishedPickingLineForm(forms.Form):
 
 
 SemiFinishedPickingFormSet = forms.formset_factory(
-    SemiFinishedPickingLineForm, extra=0, min_num=1, validate_min=True, max_num=100, validate_max=True
+    SemiFinishedPickingLineForm, extra=0, min_num=1, validate_min=True, max_num=100, validate_max=True,
+    can_delete=True,
 )
 
 
