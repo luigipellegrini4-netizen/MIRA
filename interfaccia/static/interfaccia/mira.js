@@ -10,18 +10,6 @@ window.addEventListener('pageshow', event => {
   if (event.persisted) window.location.reload();
 });
 
-document.querySelectorAll('[data-row-href]').forEach(row => {
-  const openRow = event => {
-    if (event.target.closest('a, button, input, select, textarea, label')) return;
-    window.location.href = row.dataset.rowHref;
-  };
-  row.addEventListener('click', openRow);
-  row.addEventListener('keydown', event => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    openRow(event);
-  });
-});
 document.querySelector('[data-add-planned-row]')?.addEventListener('click', event => {
   const total = document.querySelector('#id_form-TOTAL_FORMS');
   const count = Number(total.value);
