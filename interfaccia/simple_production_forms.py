@@ -471,6 +471,7 @@ class SemiFinishedSummaryForm(forms.Form):
 
 class LabelingSummaryForm(forms.Form):
     lotto_origine_display = forms.CharField(label="Lotto invasettato selezionato", disabled=True)
+    quantita_disponibile_display = forms.CharField(label="Quantità disponibile del lotto", disabled=True)
     quantita_finale_kg = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità etichettata")
     data_scadenza = forms.DateField(label="Data di scadenza", widget=forms.DateInput(attrs={"type": "date"}))
     destinazione = forms.ModelChoiceField(queryset=Ubicazione.objects.none(), label="Ubicazione prodotto finito")
@@ -484,16 +485,20 @@ class LabelingSummaryForm(forms.Form):
         self.fields["lotto_origine_display"].initial = (
             f"{source_lot.codice_lotto} · {source_lot.articolo.codice} — {source_lot.articolo.descrizione}"
         )
+        self.available = Giacenza.objects.filter(lotto=source_lot, quantita__gt=0).aggregate(
+            totale=Sum("quantita")
+        )["totale"] or 0
+        self.fields["quantita_disponibile_display"].initial = (
+            f"{self.available:g} {source_lot.articolo.unita_misura}"
+        )
         self.fields["quantita_finale_kg"].label = f"Quantità etichettata ({source_lot.articolo.unita_misura})"
         self.fields["destinazione"].queryset = Ubicazione.objects.filter(attiva=True)
         self.fields["data_scadenza"].initial = source_lot.data_scadenza
 
     def clean(self):
         data = super().clean()
-        available = Giacenza.objects.filter(lotto=self.source_lot, quantita__gt=0).aggregate(
-            totale=Sum("quantita")
-        )["totale"] or 0
-        if data.get("quantita_finale_kg") and data["quantita_finale_kg"] > available:
-            self.add_error("quantita_finale_kg", f"La quantità supera la disponibilità complessiva del lotto: {available:g} {self.source_lot.articolo.unita_misura}.")
+        if data.get("quantita_finale_kg") and data["quantita_finale_kg"] > self.available:
+            self.add_error("quantita_finale_kg", f"La quantità supera la disponibilità complessiva del lotto: {self.available:g} {self.source_lot.articolo.unita_misura}.")
         data.pop("lotto_origine_display", None)
+        data.pop("quantita_disponibile_display", None)
         return data
