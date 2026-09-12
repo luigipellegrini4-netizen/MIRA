@@ -117,7 +117,12 @@ def movements(request):
     query = request.GET.get("q", "").strip()[:150]
     records = Movimento.objects.select_related("lotto__articolo", "ubicazione_origine", "ubicazione_destinazione", "eseguito_da").order_by("-pk")
     if query:
-        records = records.filter(Q(lotto__codice_lotto__icontains=query) | Q(tipo__icontains=query))
+        records = records.filter(
+            Q(lotto__codice_lotto__icontains=query)
+            | Q(lotto__articolo__codice__icontains=query)
+            | Q(lotto__articolo__descrizione__icontains=query)
+            | Q(tipo__icontains=query)
+        )
     return render(request, "interfaccia/movements.html", {
         "section": "magazzino", "warehouse_tab": "movimenti",
         "page": paged(request, records), "q": query,

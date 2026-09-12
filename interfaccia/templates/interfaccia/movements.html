@@ -9,7 +9,7 @@
         <tbody>{% for m in page %}<tr>
             <td>{{ m.data_ora|date:'d/m/Y H:i' }}<small>#{{ m.pk }}</small></td>
             <td><span class="pill neutral">{{ m.get_tipo_display }}</span><small>{{ m.note|truncatechars:100 }}</small></td>
-            <td><a href="{% url 'ui:lot' m.lotto_id %}">{{ m.lotto.codice_lotto }}</a></td>
+            <td><a href="{% url 'ui:lot' m.lotto_id %}"><strong>{{ m.lotto.codice_lotto }}</strong></a><small>{{ m.lotto.articolo.codice }} · {{ m.lotto.articolo.descrizione }}</small></td>
             <td>{{ m.ubicazione_origine.nome|default:'Esterno' }} → {{ m.ubicazione_destinazione.nome|default:'Uscita' }}</td>
             <td class="number">{{ m.quantita|floatformat:'-6' }} {{ m.lotto.articolo.unita_misura }}</td>
             <td>{{ m.eseguito_da.username }}</td>
