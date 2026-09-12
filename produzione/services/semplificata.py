@@ -356,7 +356,9 @@ class ProduzioneSemplificataService:
     @transaction.atomic
     def chiudi_invasettamento(*, actor, sessione, vasetti_buoni, vasetti_scartati,
                               vasetti_quarantena, capsule_difettose, peso_netto_g,
-                              vasetti_giacenza, capsule_giacenza):
+                              vasetti_giacenza, capsule_giacenza, data_scadenza, destinazione):
+        from magazzino.models import Lotto, Movimento
+        from magazzino.services import MovementService
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
         if current.tipo != "INVASETTAMENTO" or current.stato != "APERTA":
@@ -376,6 +378,20 @@ class ProduzioneSemplificataService:
             vasetti_quarantena=vasetti_quarantena, capsule_difettose=capsule_difettose,
             peso_netto_g=peso_netto_g, registrato_da=actor,
         ))
+        lot = Lotto.objects.create(
+            articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
+            tipo=Lotto.Tipo.PRODUZIONE, stato_prodotto=Lotto.StatoProdotto.INVASETTATO,
+            data_produzione=timezone.localdate(), data_scadenza=data_scadenza,
+            note=f"Prodotto dall'invasettamento {current.lotto_codice}",
+        )
+        if summary.quantita_conforme_kg > 0:
+            MovementService.register(
+                actor=actor, lotto=lot, tipo=Movimento.Tipo.PRODUZIONE,
+                quantita=summary.quantita_conforme_kg, destinazione=destinazione,
+                note=f"Chiusura invasettamento {current.lotto_codice}", sessione_semplificata=current,
+            )
+        current.lotto_prodotto = lot
+        current.quantita_finale_kg = summary.quantita_finale_kg
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         _record(current)
         return summary

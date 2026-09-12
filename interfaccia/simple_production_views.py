@@ -313,6 +313,8 @@ def close(request, pk):
     def close_filling(data):
         data.pop("vasetti_articolo")
         data.pop("capsule_articolo")
+        location = data.pop("destinazione")
+        data["destinazione"] = Position(location.pk, data.pop("scaffale"), data.pop("piano"))
         return ProduzioneSemplificataService.chiudi_invasettamento(actor=request.user, sessione=obj, **data)
     return _form_view(request, SummaryForm, close_filling, "Chiudi invasettamento e calcola resa")
 

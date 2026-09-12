@@ -21,8 +21,8 @@ class StoricoAdmin(admin.ModelAdmin):
 
 @admin.register(Lotto)
 class LottoAdmin(StoricoAdmin):
-    list_display = ("codice_lotto", "articolo", "tipo", "fornitore", "data_scadenza", "genealogia")
-    list_filter = ("tipo",)
+    list_display = ("codice_lotto", "articolo", "tipo", "stato_prodotto", "fornitore", "data_scadenza", "genealogia")
+    list_filter = ("tipo", "stato_prodotto")
     search_fields = ("codice_lotto", "articolo__codice", "fornitore__ragione_sociale")
     list_select_related = ("articolo", "fornitore")
     exclude = ("codice_univoco_produzione",)

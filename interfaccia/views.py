@@ -101,11 +101,21 @@ def stock(request):
             | Q(ubicazione__codice__icontains=query)
             | Q(ubicazione__nome__icontains=query)
         )
-    stocks = stocks.order_by(
+    stocks = list(stocks.order_by(
         "lotto__articolo__categoria__codice", "lotto__articolo__categoria_id",
         "lotto__articolo__codice", "lotto__articolo_id", "lotto__data_scadenza", "lotto__codice_lotto",
         "ubicazione__codice", "ubicazione_id", "scaffale", "piano", "pk",
-    )
+    ))
+    for item in stocks:
+        if item.lotto.stato_prodotto == "INVASETTATO":
+            item.gruppo_giacenza, item.gruppo_codice = "Invasettato", "INV"
+        elif item.lotto.stato_prodotto == "PRODOTTO_FINITO":
+            item.gruppo_giacenza, item.gruppo_codice = "Prodotti finiti", "PF"
+        else:
+            item.gruppo_giacenza = item.lotto.articolo.categoria.nome
+            item.gruppo_codice = item.lotto.articolo.categoria.codice
+    stocks.sort(key=lambda item: (item.gruppo_codice, item.lotto.articolo.codice, item.lotto.codice_lotto,
+                                  item.ubicazione.codice, item.scaffale, item.piano, item.pk))
     return render(request, "interfaccia/stock.html", {
         "section": "magazzino", "warehouse_tab": "giacenze",
         "stocks": stocks, "q": query,

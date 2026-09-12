@@ -8,13 +8,13 @@
 {% include 'interfaccia/warehouse_tabs.html' %}
 <section class="panel">
     {% include 'interfaccia/search.html' %}
-    {% regroup stocks by lotto.articolo.categoria as categorie %}
+    {% regroup stocks by gruppo_giacenza as categorie %}
     <div class="stock-locations">
         {% for categoria in categorie %}
         <details class="stock-location-section" {% if q %}open{% endif %}>
             <summary>
                 <span class="location-mark" aria-hidden="true">▤</span>
-                <span class="location-title"><strong>{{ categoria.grouper.nome }}</strong><small>Categoria {{ categoria.grouper.codice }}</small></span>
+                <span class="location-title"><strong>{{ categoria.grouper }}</strong><small>Sezione {{ categoria.list.0.gruppo_codice }}</small></span>
                 <span class="location-count">{{ categoria.list|length }} lotti/posizioni</span>
                 <span class="location-chevron" aria-hidden="true">⌄</span>
             </summary>

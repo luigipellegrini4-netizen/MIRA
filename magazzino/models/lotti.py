@@ -15,9 +15,15 @@ class Lotto(HistoricalModel):
         ACQUISTO = "ACQUISTO", "Acquisto"
         PRODUZIONE = "PRODUZIONE", "Produzione"
 
+    class StatoProdotto(models.TextChoices):
+        GENERICO = "GENERICO", "Generico"
+        INVASETTATO = "INVASETTATO", "Invasettato"
+        PRODOTTO_FINITO = "PRODOTTO_FINITO", "Prodotto finito"
+
     articolo = models.ForeignKey("anagrafiche.Articolo", on_delete=models.PROTECT, related_name="lotti")
     codice_lotto = models.CharField(max_length=100)
     tipo = models.CharField(max_length=10, choices=Tipo.choices)
+    stato_prodotto = models.CharField(max_length=20, choices=StatoProdotto.choices, default=StatoProdotto.GENERICO)
     fornitore = models.ForeignKey("anagrafiche.Fornitore", null=True, blank=True, on_delete=models.PROTECT, related_name="lotti")
     data_produzione = models.DateField(null=True, blank=True)
     data_scadenza = models.DateField(null=True, blank=True)
