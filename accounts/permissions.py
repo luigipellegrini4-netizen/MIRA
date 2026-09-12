@@ -36,14 +36,14 @@ CAPABILITIES = {
     "can_execute_production": ("Eseguire produzione", {RP, OP}),
     "can_manage_work_units": ("Gestire unità e risorse associate", {RP, OP}),
     "can_record_quality_control": ("Registrare controlli qualità", {RP, RQ, OP}),
-    "can_open_nc": ("Aprire non conformità", set(OPERATIVE_ROLES)),
+    "can_open_nc": ("Aprire non conformità", set(OPERATIVE_ROLES) | {RV}),
     "can_manage_nc": ("Gestire non conformità", {RQ}),
     "can_quarantine_stock": ("Eseguire quarantena da NC", {RQ}),
     "can_reintegrate_stock": ("Eseguire reintegro da NC", {RQ}),
     "can_scrap_nc_stock": ("Eseguire scarto da NC", {RQ}),
     "can_verify_nc": ("Verificare non conformità", {RQ}),
     "can_close_nc": ("Chiudere non conformità", {RQ}),
-    "can_view_genealogy": ("Consultare genealogia", set(OPERATIVE_ROLES)),
+    "can_view_genealogy": ("Consultare genealogia", set(OPERATIVE_ROLES) | {RV}),
     "can_manage_sales": ("Gestire clienti e vendite", {RV}),
 }
 

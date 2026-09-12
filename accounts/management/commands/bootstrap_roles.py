@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from accounts.permissions import A, RP, RQ, CAPABILITIES, MODEL_MANAGERS, OPERATIVE_ROLES, ROLES
+from accounts.permissions import A, RP, RQ, RV, CAPABILITIES, MODEL_MANAGERS, OPERATIVE_ROLES, ROLES
 
 
 class Command(BaseCommand):
@@ -46,7 +46,7 @@ class Command(BaseCommand):
                         group.permissions.remove(permission)
         for permission in Permission.objects.filter(content_type__app_label="magazzino"):
             for name, group in groups.items():
-                if permission.codename.startswith("view_") and name in OPERATIVE_ROLES:
+                if permission.codename.startswith("view_") and name in set(OPERATIVE_ROLES) | {RV}:
                     group.permissions.add(permission)
                 else:
                     group.permissions.remove(permission)
@@ -95,11 +95,18 @@ class Command(BaseCommand):
             quality_configurations = {"parametrocontrollo", "controllorichiestotipolavorazione"}
             managers = {A, RQ} if model == "parametrocontrollo" else {A, RP, RQ}
             if permission.codename.startswith("view_"):
-                members = set(OPERATIVE_ROLES) | ({A} if model in quality_configurations else set())
+                members = set(OPERATIVE_ROLES) | {RV} | ({A} if model in quality_configurations else set())
             elif model in quality_configurations and permission.codename.startswith(("add_", "change_")):
                 members = managers
             else:
                 members = set()
+            for name, group in groups.items():
+                if name in members:
+                    group.permissions.add(permission)
+                else:
+                    group.permissions.remove(permission)
+        for permission in Permission.objects.filter(content_type__app_label="vendite"):
+            members = {RV} if permission.codename.startswith(("view_", "add_", "change_")) else set()
             for name, group in groups.items():
                 if name in members:
                     group.permissions.add(permission)

@@ -3,7 +3,7 @@ from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import TestCase
 
-from accounts.permissions import A, M, OP, RM, RQ
+from accounts.permissions import A, M, OP, RM, RQ, RV
 
 
 class GroupIntegrationTests(TestCase):
@@ -48,6 +48,15 @@ class GroupIntegrationTests(TestCase):
     def test_quality_permissions(self):
         user = self.user_in(RQ)
         self.assertTrue(user.has_perm("auth.can_manage_nc"))
+        self.assertFalse(user.has_perm("auth.can_adjust_inventory"))
+
+    def test_sales_manager_permissions(self):
+        user = self.user_in(RV)
+        self.assertTrue(user.has_perm("auth.can_manage_sales"))
+        self.assertTrue(user.has_perm("magazzino.view_giacenza"))
+        self.assertTrue(user.has_perm("auth.can_view_genealogy"))
+        self.assertTrue(user.has_perm("auth.can_open_nc"))
+        self.assertFalse(user.has_perm("auth.can_execute_production"))
         self.assertFalse(user.has_perm("auth.can_adjust_inventory"))
 
     def test_inactive_superuser_is_denied(self):

@@ -3,7 +3,7 @@
 <a class="back" href="{% url 'ui:trace_search' %}">← Tracciabilità</a>
 <div class="page-head">
   <div><p class="eyebrow">TRACCIABILITÀ / LOTTO #{{ lot.pk }}</p><h1>{{ lot.codice_lotto }}</h1><p class="muted">{{ lot.articolo.descrizione }} · {{ lot.articolo.unita_misura }}</p></div>
-  <span class="pill neutral">{{ lot.get_tipo_display }}</span>
+  <div class="actions"><span class="pill neutral">{{ lot.get_tipo_display }}</span>{% if perms.auth.can_open_nc %}<a class="button secondary" href="{% url 'ui:operation' 'nc_apri' %}?lotto={{ lot.pk }}">Apri NC</a>{% endif %}</div>
 </div>
 <div class="workflow">
   <div><small>FORNITORE</small><strong>{{ lot.fornitore.ragione_sociale|default:'Produzione interna' }}</strong></div>

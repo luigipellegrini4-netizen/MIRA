@@ -457,6 +457,8 @@ def operation(request, op, pk=None):
     if op == "rettifica" and request.method == "GET":
         initial["ubicazione"] = request.GET.get("ubicazione", "")
         initial["scaffale"] = request.GET.get("scaffale", "")
+    if op == "nc_apri" and request.method == "GET":
+        initial["lotto"] = request.GET.get("lotto", "")
     form = OperationForm(request.POST if request.method == "POST" else None, operation=op, work=work, case=case,
         initial=initial)
     if request.method == "POST" and form.is_valid():
