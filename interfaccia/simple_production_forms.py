@@ -1,5 +1,5 @@
 from django import forms
-from django.db.models import Sum
+from django.db.models import Min, Sum
 from django.utils import timezone
 
 from anagrafiche.models import Articolo, CategoriaArticolo, Ubicazione
@@ -29,11 +29,16 @@ def article_ids_for_category(code):
 
 
 def stock_label(stock):
-    expiry = stock.lotto.data_scadenza.strftime("%d/%m/%Y") if stock.lotto.data_scadenza else "non indicata"
+    if stock.lotto.data_scadenza:
+        date_reference = f"scadenza {stock.lotto.data_scadenza.strftime('%d/%m/%Y')}"
+    elif getattr(stock, "data_carico", None):
+        date_reference = f"carico {timezone.localtime(stock.data_carico).strftime('%d/%m/%Y')}"
+    else:
+        date_reference = "carico non indicato"
     return (
         f"{stock.lotto.articolo.codice} — {stock.lotto.articolo.descrizione} · lotto {stock.lotto.codice_lotto} · "
         f"{stock.ubicazione.codice}/{stock.scaffale or '-'}-{stock.piano or '-'} · disponibili {stock.quantita} "
-        f"{stock.lotto.articolo.unita_misura} · scadenza {expiry}"
+        f"{stock.lotto.articolo.unita_misura} · {date_reference}"
     )
 
 
@@ -103,12 +108,14 @@ class PickingForm(forms.Form):
         super().__init__(*args, **kwargs)
         if session and session.tipo == "SEMILAVORATO":
             self.fields["numero_batch"].label = "Numero lavorazione"
-        self.fields["giacenza"].queryset = Giacenza.objects.filter(quantita__gt=0).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__codice", "lotto__codice_lotto")
+        self.fields["giacenza"].queryset = Giacenza.objects.filter(quantita__gt=0).annotate(
+            data_carico=Min("lotto__ricevimenti__data_ricevimento")
+        ).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__codice", "lotto__codice_lotto")
         self.fields["giacenza"].label_from_instance = lambda g: (
             f"{g.lotto.articolo.codice} — {g.lotto.articolo.descrizione} · lotto {g.lotto.codice_lotto} · "
             f"{g.ubicazione.codice}/{g.scaffale or '-'}-{g.piano or '-'} · disponibili {g.quantita} "
-            f"{g.lotto.articolo.unita_misura} · scadenza "
-            f"{g.lotto.data_scadenza.strftime('%d/%m/%Y') if g.lotto.data_scadenza else 'non indicata'}"
+            f"{g.lotto.articolo.unita_misura} · "
+            f"{('scadenza ' + g.lotto.data_scadenza.strftime('%d/%m/%Y')) if g.lotto.data_scadenza else ('carico ' + timezone.localtime(g.data_carico).strftime('%d/%m/%Y')) if g.data_carico else 'carico non indicato'}"
         )
 
 
@@ -133,13 +140,15 @@ class SemiFinishedPickingLineForm(forms.Form):
             stocks = stocks.filter(lotto__articolo_id=article_id)
         else:
             stocks = stocks.none()
-        self.fields["giacenza"].queryset = stocks.select_related(
+        self.fields["giacenza"].queryset = stocks.annotate(
+            data_carico=Min("lotto__ricevimenti__data_ricevimento")
+        ).select_related(
             "lotto__articolo", "ubicazione"
         ).order_by("lotto__data_scadenza", "lotto__codice_lotto", "pk")
         self.fields["giacenza"].label_from_instance = lambda g: (
             f"{g.lotto.articolo.codice} — {g.lotto.articolo.descrizione} · lotto {g.lotto.codice_lotto} · "
             f"{g.ubicazione.codice}/{g.scaffale or '-'}-{g.piano or '-'} · disponibili {g.quantita} kg · "
-            f"scadenza {g.lotto.data_scadenza.strftime('%d/%m/%Y') if g.lotto.data_scadenza else 'non indicata'}"
+            f"{('scadenza ' + g.lotto.data_scadenza.strftime('%d/%m/%Y')) if g.lotto.data_scadenza else ('carico ' + timezone.localtime(g.data_carico).strftime('%d/%m/%Y')) if g.data_carico else 'carico non indicato'}"
         )
 
     def clean(self):
@@ -169,14 +178,14 @@ class AdditionalPickingForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["giacenza"].queryset = Giacenza.objects.filter(
             quantita__gt=0, ubicazione__attiva=True
-        ).select_related("lotto__articolo", "ubicazione").order_by(
+        ).annotate(data_carico=Min("lotto__ricevimenti__data_ricevimento")).select_related("lotto__articolo", "ubicazione").order_by(
             "lotto__articolo__descrizione", "lotto__data_scadenza", "lotto__codice_lotto", "pk"
         )
         self.fields["giacenza"].label_from_instance = lambda g: (
             f"{g.lotto.articolo.codice} — {g.lotto.articolo.descrizione} · lotto {g.lotto.codice_lotto} · "
             f"{g.ubicazione.codice}/{g.scaffale or '-'}-{g.piano or '-'} · disponibili {g.quantita} "
-            f"{g.lotto.articolo.unita_misura} · scadenza "
-            f"{g.lotto.data_scadenza.strftime('%d/%m/%Y') if g.lotto.data_scadenza else 'non indicata'}"
+            f"{g.lotto.articolo.unita_misura} · "
+            f"{('scadenza ' + g.lotto.data_scadenza.strftime('%d/%m/%Y')) if g.lotto.data_scadenza else ('carico ' + timezone.localtime(g.data_carico).strftime('%d/%m/%Y')) if g.data_carico else 'carico non indicato'}"
         )
 
 
@@ -355,7 +364,7 @@ class SummaryForm(forms.Form):
         moca_ids = article_ids_for_category("MOCA")
         stocks = Giacenza.objects.filter(
             quantita__gt=0, ubicazione__attiva=True, lotto__articolo_id__in=moca_ids,
-        ).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__data_scadenza", "pk")
+        ).annotate(data_carico=Min("lotto__ricevimenti__data_ricevimento")).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__data_scadenza", "pk")
         articles = Articolo.objects.filter(pk__in=moca_ids, lotti__giacenze__quantita__gt=0).distinct()
         for prefix, label in (("vasetti", "Vasetti"), ("capsule", "Capsule")):
             self.fields[f"{prefix}_articolo"] = forms.ModelChoiceField(
@@ -414,7 +423,7 @@ class SemiFinishedSummaryForm(forms.Form):
         ).distinct()
         self.fields["moca_giacenza"].queryset = Giacenza.objects.filter(
             quantita__gt=0, ubicazione__attiva=True, lotto__articolo_id__in=moca_ids,
-        ).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__data_scadenza", "pk")
+        ).annotate(data_carico=Min("lotto__ricevimenti__data_ricevimento")).select_related("lotto__articolo", "ubicazione").order_by("lotto__articolo__descrizione", "lotto__data_scadenza", "pk")
         self.fields["moca_giacenza"].label_from_instance = stock_label
 
     def clean_data_scadenza(self):
