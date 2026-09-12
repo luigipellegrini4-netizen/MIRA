@@ -16,6 +16,14 @@
     <div class="list-row"><span>{{ stock.ubicazione.nome }} · {{ stock.scaffale }} {{ stock.piano }}</span><strong>{{ stock.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
   {% empty %}<div class="empty">Nessuna giacenza consultabile.</div>{% endfor %}
 </section>
+{% if sales_movements %}
+<section class="panel space-top">
+  <div class="panel-head"><div><h2>Vendite del lotto</h2><small>Documenti e clienti ai quali il lotto è stato destinato.</small></div><span class="counter">{{ sales_movements|length }}</span></div>
+  <div class="table-wrap"><table><thead><tr><th>Documento</th><th>Cliente</th><th>Data</th><th>Origine</th><th class="number">Quantità</th></tr></thead><tbody>
+  {% for movement in sales_movements %}<tr><td><strong>{{ movement.riga_vendita.vendita.numero_documento }}</strong></td><td>{{ movement.riga_vendita.vendita.cliente.ragione_sociale }}</td><td>{{ movement.riga_vendita.vendita.data_documento|date:'d/m/Y' }}</td><td>{{ movement.ubicazione_origine.nome }}{% if movement.scaffale_origine %} · {{ movement.scaffale_origine }}{% endif %}{% if movement.piano_origine %}/{{ movement.piano_origine }}{% endif %}</td><td class="number"><strong>{{ movement.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
 {% if graph %}
   <section class="trace-header space-top">
     <div>

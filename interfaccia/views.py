@@ -169,6 +169,10 @@ def movements(request):
 @permitted("magazzino.view_lotto")
 def lot_detail(request, pk):
     lot = get_object_or_404(Lotto.objects.select_related("articolo", "fornitore"), pk=pk)
+    sales_movements = lot.movimenti.filter(tipo="VENDITA").select_related(
+        "riga_vendita__vendita__cliente", "riga_vendita__vendita__registrata_da",
+        "ubicazione_origine",
+    ).order_by("-data_ora", "-pk")
     graph = None
     direction = "VALLE" if request.GET.get("direzione") == "VALLE" else "MONTE"
     if request.user.has_perm("auth.can_view_genealogy"):
@@ -234,7 +238,10 @@ def lot_detail(request, pk):
             frontier = next_frontier
         graph["trace_levels"] = list(reversed(levels)) if direction == "MONTE" else levels
     stocks = Giacenza.objects.filter(lotto=lot).select_related("ubicazione") if request.user.has_perm("magazzino.view_giacenza") else []
-    return render(request, "interfaccia/lot.html", {"section": "tracciabilita", "lot": lot, "stocks": stocks, "graph": graph, "direction": direction})
+    return render(request, "interfaccia/lot.html", {
+        "section": "tracciabilita", "lot": lot, "stocks": stocks, "graph": graph,
+        "direction": direction, "sales_movements": sales_movements,
+    })
 
 
 @permitted("auth.can_view_genealogy")
