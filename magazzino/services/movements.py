@@ -88,7 +88,7 @@ class MovementService:
         if tipo == Movimento.Tipo.SCARICO and not note.strip():
             raise ValidationError("Lo scarico materiale richiede una motivazione.")
         incoming = tipo in {Movimento.Tipo.CARICO, Movimento.Tipo.PRODUZIONE} and origine is None and destinazione is not None
-        outgoing = tipo in {Movimento.Tipo.CONSUMO, Movimento.Tipo.SCARTO, Movimento.Tipo.SCARICO} and origine is not None and destinazione is None
+        outgoing = tipo in {Movimento.Tipo.CONSUMO, Movimento.Tipo.VENDITA, Movimento.Tipo.SCARTO, Movimento.Tipo.SCARICO} and origine is not None and destinazione is None
         transfer = tipo in {Movimento.Tipo.TRASFERIMENTO, Movimento.Tipo.QUARANTENA, Movimento.Tipo.REINTEGRO} and origine is not None and destinazione is not None and origine != destinazione
         adjustment = tipo == Movimento.Tipo.RETTIFICA and ((origine is None) != (destinazione is None))
         if not any((incoming, outgoing, transfer, adjustment)):
