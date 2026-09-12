@@ -6,10 +6,10 @@
     {% include 'interfaccia/search.html' %}
     <div class="table-wrap"><table>
         <thead><tr><th>Data / ID</th><th>Operazione</th><th>Lotto</th><th>Percorso</th><th class="number">Quantità</th><th>Operatore</th></tr></thead>
-        <tbody>{% for m in page %}<tr>
+        <tbody>{% for m in page %}<tr data-row-href="{% url 'ui:lot' m.lotto_id %}" tabindex="0" role="link" aria-label="Apri lotto {{ m.lotto.codice_lotto }}">
             <td>{{ m.data_ora|date:'d/m/Y H:i' }}<small>#{{ m.pk }}</small></td>
             <td><span class="pill neutral">{{ m.get_tipo_display }}</span><small>{{ m.note|truncatechars:100 }}</small></td>
-            <td><a href="{% url 'ui:lot' m.lotto_id %}"><strong>{{ m.lotto.codice_lotto }}</strong></a><small>{{ m.lotto.articolo.codice }} · {{ m.lotto.articolo.descrizione }}</small></td>
+            <td><strong>{{ m.lotto.codice_lotto }}</strong><small>{{ m.lotto.articolo.codice }} · {{ m.lotto.articolo.descrizione }}</small></td>
             <td><strong>{{ m.percorso_origine }}</strong><small>→ {{ m.percorso_destinazione }}</small></td>
             <td class="number">{{ m.quantita|floatformat:'-6' }} {{ m.lotto.articolo.unita_misura }}</td>
             <td>{{ m.eseguito_da.username }}</td>

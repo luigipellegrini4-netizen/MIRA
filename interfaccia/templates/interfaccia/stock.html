@@ -30,8 +30,8 @@
                     </summary>
                     <div class="table-wrap"><table class="stock-table">
                         <thead><tr><th>Lotto</th><th>Ubicazione</th><th>Scaffale e piano</th><th>Scadenza</th><th>Confezionamento</th><th class="number">Giacenza</th></tr></thead>
-                        <tbody>{% for stock in articolo.list %}<tr>
-                            <td><a href="{% url 'ui:lot' stock.lotto_id %}">{{ stock.lotto.codice_lotto }} ↗</a>{% if perms.auth.can_adjust_inventory %}<small><a href="{% url 'ui:lot_edit' stock.lotto_id %}">Modifica</a></small>{% endif %}</td>
+                        <tbody>{% for stock in articolo.list %}<tr data-row-href="{% url 'ui:lot' stock.lotto_id %}" tabindex="0" role="link" aria-label="Apri lotto {{ stock.lotto.codice_lotto }}">
+                            <td><strong>{{ stock.lotto.codice_lotto }}</strong>{% if perms.auth.can_adjust_inventory %}<small><a href="{% url 'ui:lot_edit' stock.lotto_id %}">Modifica</a></small>{% endif %}</td>
                             <td><strong>{{ stock.ubicazione.nome }}</strong><small>{{ stock.ubicazione.codice }}</small></td>
                             <td>{% if stock.scaffale or stock.piano %}<strong>Scaffale {{ stock.scaffale|default:'—' }}</strong><small>Piano {{ stock.piano|default:'—' }}</small>{% else %}<span class="muted">Non specificati</span>{% endif %}</td>
                             <td>{{ stock.lotto.data_scadenza|date:'d/m/Y'|default:'—' }}</td>

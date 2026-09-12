@@ -1,0 +1,9 @@
+tr[data-row-href] {
+  cursor: pointer;
+}
+
+tr[data-row-href]:focus-visible {
+  outline: 3px solid #bd912c;
+  outline-offset: -3px;
+  background: #f4f8f3;
+}
