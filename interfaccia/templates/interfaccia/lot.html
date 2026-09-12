@@ -1,6 +1,6 @@
 {% extends 'interfaccia/base.html' %}
 {% block content %}
-<a class="back" href="{% url 'ui:magazzino' %}">← Magazzino</a>
+<a class="back" href="{% url 'ui:trace_search' %}">← Tracciabilità</a>
 <div class="page-head">
   <div><p class="eyebrow">TRACCIABILITÀ / LOTTO #{{ lot.pk }}</p><h1>{{ lot.codice_lotto }}</h1><p class="muted">{{ lot.articolo.descrizione }} · {{ lot.articolo.unita_misura }}</p></div>
   <span class="pill neutral">{{ lot.get_tipo_display }}</span>

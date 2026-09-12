@@ -1,0 +1,47 @@
+{% extends 'interfaccia/base.html' %}
+{% block breadcrumb %}Tracciabilità{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">TRACCIABILITÀ</p>
+    <h1>Cerca un lotto</h1>
+    <p class="muted">Trova un lotto e consulta le materie prime di origine oppure tutti i suoi utilizzi successivi.</p>
+  </div>
+</div>
+
+<section class="panel">
+  <form method="get" class="search">
+    <label class="sr-only" for="trace-search">Cerca un lotto</label>
+    <input id="trace-search" name="q" value="{{ q }}" autofocus placeholder="Codice lotto, articolo, descrizione o fornitore…">
+    <button class="button primary" type="submit">Cerca</button>
+    {% if q %}<a href="{% url 'ui:trace_search' %}" class="text-button">Azzera</a>{% endif %}
+  </form>
+
+  {% if q %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Lotto</th><th>Articolo</th><th>Origine</th><th>Scadenza</th><th>Consulta</th></tr></thead>
+        <tbody>
+          {% for lot in page %}
+            <tr>
+              <td><strong>{{ lot.codice_lotto }}</strong><small>{{ lot.get_tipo_display }}</small></td>
+              <td><strong>{{ lot.articolo.descrizione }}</strong><small>{{ lot.articolo.codice }} · {{ lot.articolo.unita_misura }}</small></td>
+              <td>{{ lot.fornitore.ragione_sociale|default:'Produzione interna' }}</td>
+              <td>{{ lot.data_scadenza|date:'d/m/Y'|default:'—' }}</td>
+              <td><div class="actions">
+                <a class="button secondary" href="{% url 'ui:lot' lot.pk %}?direzione=MONTE">← Da dove proviene</a>
+                <a class="button secondary" href="{% url 'ui:lot' lot.pk %}?direzione=VALLE">Dove è stato usato →</a>
+              </div></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">Nessun lotto corrisponde alla ricerca.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include 'interfaccia/pagination.html' %}
+  {% else %}
+    <div class="empty"><span>⌕</span><h3>Inserisci un termine di ricerca</h3><p>Puoi usare anche una parte del codice o della descrizione.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

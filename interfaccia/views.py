@@ -207,7 +207,25 @@ def lot_detail(request, pk):
             frontier = next_frontier
         graph["trace_levels"] = list(reversed(levels)) if direction == "MONTE" else levels
     stocks = Giacenza.objects.filter(lotto=lot).select_related("ubicazione") if request.user.has_perm("magazzino.view_giacenza") else []
-    return render(request, "interfaccia/lot.html", {"section": "magazzino", "lot": lot, "stocks": stocks, "graph": graph, "direction": direction})
+    return render(request, "interfaccia/lot.html", {"section": "tracciabilita", "lot": lot, "stocks": stocks, "graph": graph, "direction": direction})
+
+
+@permitted("auth.can_view_genealogy")
+def trace_search(request):
+    query = request.GET.get("q", "").strip()[:150]
+    records = Lotto.objects.select_related("articolo", "fornitore").order_by("-pk")
+    if query:
+        records = records.filter(
+            Q(codice_lotto__icontains=query)
+            | Q(articolo__codice__icontains=query)
+            | Q(articolo__descrizione__icontains=query)
+            | Q(fornitore__ragione_sociale__icontains=query)
+        )
+    else:
+        records = records.none()
+    return render(request, "interfaccia/trace_search.html", {
+        "section": "tracciabilita", "page": paged(request, records), "q": query,
+    })
 
 
 @permitted("produzione.view_lavorazione")

@@ -37,6 +37,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("magazzino/", views.stock, name="magazzino"),
     path("magazzino/movimenti/", views.movements, name="movimenti"),
+    path("tracciabilita/", views.trace_search, name="trace_search"),
     path("configurazione/", csv_views.manage_csv, name="manage_csv"),
     path("configurazione/csv/scarica/<slug:kind>/", csv_views.download_csv, name="download_csv"),
     path("configurazione/backup/", csv_views.download_backup, name="download_backup"),
