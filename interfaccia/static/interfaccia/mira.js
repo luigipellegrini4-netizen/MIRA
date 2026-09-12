@@ -19,6 +19,23 @@ document.querySelector('[data-add-planned-row]')?.addEventListener('click', even
   if (count + 1 >= 200) event.currentTarget.disabled = true;
 });
 
+document.querySelector('[data-picking-rows]')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-add-picking-row]');
+  if (!button) return;
+  const rows = button.closest('[data-picking-rows]');
+  const source = button.closest('[data-picking-row]');
+  const total = source.closest('form').querySelector('[name="form-TOTAL_FORMS"]');
+  const index = Number(total.value);
+  if (index >= 100) return;
+  const clone = source.cloneNode(true);
+  clone.innerHTML = clone.innerHTML.replace(/form-\d+-/g, `form-${index}-`);
+  clone.querySelectorAll('.errorlist').forEach(error => error.remove());
+  clone.querySelectorAll('select').forEach(select => { select.selectedIndex = 0; });
+  clone.querySelectorAll('input:not([type="hidden"])').forEach(input => { input.value = ''; });
+  source.after(clone);
+  total.value = String(index + 1);
+});
+
 document.querySelectorAll('[data-control-type]').forEach(selector => {
   const form = selector.closest('form');
   const number = form.querySelector('[data-control-number]');
