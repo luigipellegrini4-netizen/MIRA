@@ -29,7 +29,8 @@ def stock_label(stock):
         position += " · scaffale " + stock.scaffale
     if stock.piano:
         position += " · piano " + stock.piano
-    return (f"{stock.lotto.codice_lotto} — {position} — "
+    return (f"{stock.lotto.codice_lotto} · {stock.lotto.articolo.codice} — "
+            f"{stock.lotto.articolo.descrizione} — {position} — "
             f"disponibili {stock.quantita:g} {stock.lotto.articolo.unita_misura}")
 
 
