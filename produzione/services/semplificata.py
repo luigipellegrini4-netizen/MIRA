@@ -435,9 +435,9 @@ class ProduzioneSemplificataService:
 
     @staticmethod
     @transaction.atomic
-    def chiudi_etichettatura(*, actor, sessione, giacenza_origine, quantita_finale_kg,
+    def chiudi_etichettatura(*, actor, sessione, quantita_finale_kg,
                              data_scadenza, destinazione):
-        from magazzino.models import Lotto, Movimento
+        from magazzino.models import Giacenza, Lotto, Movimento
         from magazzino.services import MovementService, Position
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().select_related(
@@ -445,27 +445,33 @@ class ProduzioneSemplificataService:
         ).get(pk=sessione.pk)
         if current.tipo != "ETICHETTATURA" or current.stato != "APERTA":
             raise ValidationError("La sessione di etichettatura non è aperta.")
-        stock = giacenza_origine.__class__.objects.select_for_update().select_related(
-            "lotto", "ubicazione"
-        ).get(pk=giacenza_origine.pk)
-        if stock.lotto_id != current.lotto_origine.lotto_prodotto_id:
-            raise ValidationError("La posizione scelta non appartiene al lotto invasettato.")
-        movement = MovementService.register(
-            actor=actor, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO,
-            quantita=quantita_finale_kg,
-            origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
-            note=f"Etichettatura nel lotto {current.lotto_codice}",
-        )
-        _record(PrelievoSessioneSemplificata(
-            sessione=current, lotto=stock.lotto, movimento=movement,
-            quantita_kg=quantita_finale_kg, da_ricetta=False, registrato_da=actor,
-            note="Lotto invasettato destinato all'etichettatura",
-        ))
+        source_lot = current.lotto_origine.lotto_prodotto
+        stocks = list(Giacenza.objects.select_for_update().filter(
+            lotto=source_lot, quantita__gt=0, ubicazione__attiva=True,
+        ).select_related("ubicazione").order_by("ubicazione__codice", "scaffale", "piano", "pk"))
+        if sum((stock.quantita for stock in stocks), Decimal("0")) < quantita_finale_kg:
+            raise ValidationError("La disponibilità complessiva del lotto invasettato è insufficiente.")
+        remaining = quantita_finale_kg
+        for stock in stocks:
+            if remaining <= 0:
+                break
+            used = min(stock.quantita, remaining)
+            movement = MovementService.register(
+                actor=actor, lotto=source_lot, tipo=Movimento.Tipo.CONSUMO, quantita=used,
+                origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
+                note=f"Etichettatura nel lotto {current.lotto_codice}",
+            )
+            _record(PrelievoSessioneSemplificata(
+                sessione=current, lotto=source_lot, movimento=movement,
+                quantita_kg=used, da_ricetta=False, registrato_da=actor,
+                note="Lotto invasettato destinato all'etichettatura",
+            ))
+            remaining -= used
         lot = Lotto.objects.create(
             articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
             tipo=Lotto.Tipo.PRODUZIONE, stato_prodotto=Lotto.StatoProdotto.PRODOTTO_FINITO,
             data_produzione=timezone.localdate(), data_scadenza=data_scadenza,
-            note=f"Prodotto dall'etichettatura del lotto {stock.lotto.codice_lotto}",
+            note=f"Prodotto dall'etichettatura del lotto {source_lot.codice_lotto}",
         )
         MovementService.register(
             actor=actor, lotto=lot, tipo=Movimento.Tipo.PRODUZIONE,
