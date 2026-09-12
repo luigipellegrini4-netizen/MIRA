@@ -38,21 +38,18 @@
     {% csrf_token %}
     {{ formset.management_form }}
     {{ formset.non_form_errors }}
-    <div data-picking-rows>
     {% for form in formset %}
-      <section class="panel ingredient-panel" data-picking-row>
-        {{ form.articolo }}{{ form.DELETE.as_hidden }}
+      <section class="panel ingredient-panel">
+        {{ form.articolo }}
         <div class="form-grid">
-          <div class="field wide"><label for="{{ form.giacenza.id_for_label }}">{{ form.giacenza.label }}</label>{{ form.giacenza }}{{ form.giacenza.errors }}</div>
           <div class="field"><label for="{{ form.quantita_kg.id_for_label }}">{{ form.quantita_kg.label }}</label>{{ form.quantita_kg }}{{ form.quantita_kg.errors }}</div>
+          <div class="field wide"><label for="{{ form.giacenza.id_for_label }}">{{ form.giacenza.label }}</label>{{ form.giacenza }}{{ form.giacenza.errors }}{% if form.giacenza.help_text %}<small>{{ form.giacenza.help_text }}</small>{% endif %}</div>
           <div class="field"><label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>{{ form.note }}{{ form.note.errors }}</div>
         </div>
-        <div class="form-footer"><button class="button secondary" type="button" data-add-picking-row>+ Usa un altro lotto dello stesso materiale</button> <button class="button secondary danger" type="button" data-remove-picking-row>Rimuovi riga</button></div>
       </section>
     {% empty %}
       <div class="notice warning">Non ci sono giacenze da proporre.</div>
     {% endfor %}
-    </div>
     <div class="form-footer">
       <a class="button secondary" href="{% url 'ui:simple_session' session.pk %}">Annulla</a>
       <button class="button primary" type="submit" {% if not proposal_complete or not formset.forms %}disabled{% endif %}>Conferma tutti i prelievi</button>

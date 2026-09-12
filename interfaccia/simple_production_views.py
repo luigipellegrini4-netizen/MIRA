@@ -157,41 +157,44 @@ def picking(request, pk):
                 "criterio": proposal.criterio, "mancante": proposal.mancante,
             })
             proposal_complete = proposal_complete and proposal.mancante == 0
-            initial.extend({
+            initial.append({
                 "articolo": article.pk,
-                "giacenza": line.giacenza_id,
-                "quantita_kg": line.quantita,
-            } for line in proposal.righe)
+                "giacenza": [line.giacenza_id for line in proposal.righe],
+                "quantita_kg": required,
+            })
 
         already_recorded = obj.prelievi.filter(da_ricetta=True).exists()
         formset = SemiFinishedPickingFormSet(request.POST if request.method == "POST" else None, initial=initial)
         error = ""
         if request.method == "POST" and not already_recorded and formset.is_valid():
-            active_rows = [row for row in formset.cleaned_data if not row.get("DELETE")]
+            active_rows = formset.cleaned_data
             expected_articles = {row["articolo"].pk for row in requirements}
             submitted_articles = {row["articolo"].pk for row in active_rows}
             if submitted_articles != expected_articles:
                 error = "Confermare almeno un prelievo per ogni ingrediente della ricetta."
-            elif len({row["giacenza"].pk for row in active_rows}) != len(active_rows):
-                error = "La stessa giacenza è stata selezionata più di una volta. Unisci le quantità in una sola riga."
             if not error:
                 try:
                     with transaction.atomic():
                         for data in active_rows:
-                            stock = data["giacenza"]
-                            movement = MovementService.register(
-                                actor=request.user, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO,
-                                quantita=data["quantita_kg"],
-                                origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
-                                note=data.get("note", ""),
-                            )
-                            row = PrelievoSessioneSemplificata(
-                                sessione=obj, lotto=stock.lotto, movimento=movement,
-                                quantita_kg=data["quantita_kg"], numero_batch=None,
-                                da_ricetta=True, registrato_da=request.user, note=data.get("note", ""),
-                            )
-                            row.full_clean()
-                            row.save()
+                            remaining = data["quantita_kg"]
+                            for stock in data["giacenza"]:
+                                if remaining <= 0:
+                                    break
+                                used = min(stock.quantita, remaining)
+                                movement = MovementService.register(
+                                    actor=request.user, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO,
+                                    quantita=used,
+                                    origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
+                                    note=data.get("note", ""),
+                                )
+                                row = PrelievoSessioneSemplificata(
+                                    sessione=obj, lotto=stock.lotto, movimento=movement,
+                                    quantita_kg=used, numero_batch=None,
+                                    da_ricetta=True, registrato_da=request.user, note=data.get("note", ""),
+                                )
+                                row.full_clean()
+                                row.save()
+                                remaining -= used
                 except ValidationError as exc:
                     error = " · ".join(exc.messages)
                 else:

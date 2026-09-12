@@ -50,6 +50,7 @@ class StockByArticleSelectMultiple(forms.SelectMultiple):
         option = super().create_option(name, value, label, selected, index, subindex, attrs)
         if value and getattr(value, "instance", None):
             option["attrs"]["data-article"] = value.instance.lotto.articolo_id
+            option["attrs"]["data-available"] = value.instance.quantita
         return option
 
 
@@ -113,8 +114,15 @@ class PickingForm(forms.Form):
 
 class SemiFinishedPickingLineForm(forms.Form):
     articolo = forms.ModelChoiceField(queryset=Articolo.objects.all(), widget=forms.HiddenInput())
-    giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), label="Lotto e posizione")
-    quantita_kg = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità da prelevare (kg)")
+    giacenza = forms.ModelMultipleChoiceField(
+        queryset=Giacenza.objects.none(), label="Lotti e posizioni disponibili",
+        widget=StockByArticleSelectMultiple(attrs={"size": 6, "data-picking-lots": ""}),
+        help_text="Puoi selezionare più lotti. MIRA ripartirà tra essi la quantità indicata.",
+    )
+    quantita_kg = forms.DecimalField(
+        min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità totale da prelevare",
+        widget=forms.NumberInput(attrs={"step": "0.000001", "data-picking-quantity": ""}),
+    )
     note = forms.CharField(widget=forms.TextInput(), required=False)
 
     def __init__(self, *args, **kwargs):
@@ -134,10 +142,18 @@ class SemiFinishedPickingLineForm(forms.Form):
             f"scadenza {g.lotto.data_scadenza.strftime('%d/%m/%Y') if g.lotto.data_scadenza else 'non indicata'}"
         )
 
+    def clean(self):
+        data = super().clean()
+        article, stocks, quantity = data.get("articolo"), data.get("giacenza"), data.get("quantita_kg")
+        if article and stocks and any(stock.lotto.articolo_id != article.pk for stock in stocks):
+            self.add_error("giacenza", "Uno dei lotti non appartiene all’ingrediente.")
+        if stocks and quantity and sum(stock.quantita for stock in stocks) < quantity:
+            self.add_error("giacenza", "I lotti selezionati non coprono la quantità indicata.")
+        return data
+
 
 SemiFinishedPickingFormSet = forms.formset_factory(
     SemiFinishedPickingLineForm, extra=0, min_num=1, validate_min=True, max_num=100, validate_max=True,
-    can_delete=True,
 )
 
 

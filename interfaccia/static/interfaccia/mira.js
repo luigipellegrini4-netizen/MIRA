@@ -19,33 +19,18 @@ document.querySelector('[data-add-planned-row]')?.addEventListener('click', even
   if (count + 1 >= 200) event.currentTarget.disabled = true;
 });
 
-document.querySelector('[data-picking-rows]')?.addEventListener('click', event => {
-  const removeButton = event.target.closest('[data-remove-picking-row]');
-  if (removeButton) {
-    const row = removeButton.closest('[data-picking-row]');
-    const deletion = row.querySelector('input[name$="-DELETE"]');
-    if (deletion) {
-      deletion.value = 'on';
-      row.hidden = true;
-    }
-    return;
-  }
-  const button = event.target.closest('[data-add-picking-row]');
-  if (!button) return;
-  const rows = button.closest('[data-picking-rows]');
-  const source = button.closest('[data-picking-row]');
-  const total = source.closest('form').querySelector('[name="form-TOTAL_FORMS"]');
-  const index = Number(total.value);
-  if (index >= 100) return;
-  const clone = source.cloneNode(true);
-  clone.innerHTML = clone.innerHTML.replace(/form-\d+-/g, `form-${index}-`);
-  clone.querySelectorAll('.errorlist').forEach(error => error.remove());
-  clone.querySelectorAll('select').forEach(select => { select.selectedIndex = 0; });
-  clone.querySelectorAll('input:not([type="hidden"])').forEach(input => { input.value = ''; });
-  const deletion = clone.querySelector('input[name$="-DELETE"]');
-  if (deletion) deletion.value = '';
-  source.after(clone);
-  total.value = String(index + 1);
+document.querySelectorAll('[data-picking-quantity]').forEach(quantityInput => {
+  const panel = quantityInput.closest('.ingredient-panel');
+  const lots = panel?.querySelector('[data-picking-lots]');
+  if (!lots) return;
+  quantityInput.addEventListener('input', () => {
+    let remaining = Number(String(quantityInput.value).replace(',', '.')) || 0;
+    Array.from(lots.options).forEach(option => {
+      const available = Number(option.dataset.available) || 0;
+      option.selected = remaining > 0 && available > 0;
+      remaining -= option.selected ? available : 0;
+    });
+  });
 });
 
 document.querySelectorAll('[data-control-type]').forEach(selector => {
