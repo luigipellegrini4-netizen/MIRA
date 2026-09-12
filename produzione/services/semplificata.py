@@ -454,7 +454,7 @@ class ProduzioneSemplificataService:
             actor=actor, lotto=stock.lotto, tipo=Movimento.Tipo.CONSUMO,
             quantita=quantita_finale_kg,
             origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
-            note=f"Etichettatura nel lotto {current.lotto_codice}", sessione_semplificata=current,
+            note=f"Etichettatura nel lotto {current.lotto_codice}",
         )
         _record(PrelievoSessioneSemplificata(
             sessione=current, lotto=stock.lotto, movimento=movement,
