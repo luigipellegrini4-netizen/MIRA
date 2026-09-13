@@ -32,6 +32,7 @@ class Lotto(HistoricalModel):
     stato_prodotto = models.CharField(max_length=20, choices=StatoProdotto.choices, default=StatoProdotto.GENERICO)
     stato_confezionamento = models.CharField(max_length=20, choices=StatoConfezionamento.choices, default=StatoConfezionamento.NON_APPLICABILE)
     quantita_confezionata = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+    confezionamento_verificato = models.BooleanField(default=True)
     fornitore = models.ForeignKey("anagrafiche.Fornitore", null=True, blank=True, on_delete=models.PROTECT, related_name="lotti")
     data_produzione = models.DateField(null=True, blank=True)
     data_scadenza = models.DateField(null=True, blank=True)

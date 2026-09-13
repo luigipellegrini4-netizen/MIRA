@@ -22,11 +22,18 @@ class Giacenza(models.Model):
     quantita = models.DecimalField(max_digits=18, decimal_places=6, default=0, validators=[MinValueValidator(Decimal("0"))])
     objects = StockQuerySet.as_manager()
 
+    quantita_confezionata = models.DecimalField(max_digits=18, decimal_places=6, default=0)
+
+    @property
+    def quantita_non_confezionata(self):
+        return self.quantita - self.quantita_confezionata
+
     class Meta:
         verbose_name_plural = "Giacenze"
         constraints = [
             models.UniqueConstraint(fields=["lotto", "ubicazione", "scaffale", "piano"], name="giacenza_posizione_univoca"),
             models.CheckConstraint(condition=Q(quantita__gte=0), name="giacenza_non_negativa"),
+            models.CheckConstraint(condition=Q(quantita_confezionata__gte=0) & Q(quantita_confezionata__lte=F("quantita")), name="giacenza_confezionata_valida"),
         ]
 
     def clean(self):
@@ -48,6 +55,11 @@ class Giacenza(models.Model):
 
 
 class Movimento(HistoricalModel):
+    class Componente(models.TextChoices):
+        SFUSO = "SFUSO", "Non confezionato"
+        CONFEZIONATO = "CONFEZIONATO", "Confezionato"
+
+    componente = models.CharField(max_length=15, choices=Componente.choices, blank=True, default="")
     class Tipo(models.TextChoices):
         CARICO = "CARICO", "Carico"
         TRASFERIMENTO = "TRASFERIMENTO", "Trasferimento"

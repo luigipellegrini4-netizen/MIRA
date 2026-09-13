@@ -66,12 +66,17 @@ def validate_records(records):
     try:
         objects = list(serializers.deserialize("python", records))
         for item in objects:
+            if item.object._meta.label_lower == "magazzino.giacenza":
+                stock = item.object
+                if not 0 <= stock.quantita_confezionata <= stock.quantita:
+                    raise ValidationError(f"Ripartizione confezionamento non valida nella giacenza #{stock.pk}.")
             for field in item.object._meta.fields:
                 if field.is_relation or field.primary_key or getattr(field, "generated", False):
                     continue
                 value = getattr(item.object, field.attname)
                 field.clean(value, item.object)
         differences = stock_differences(records)
+        validate_packaging_balances(records)
     except (ValueError, TypeError, InvalidOperation, serializers.base.DeserializationError) as exc:
         raise ValidationError("Valore non valido nel backup: " + str(exc)) from exc
     if differences:
@@ -81,3 +86,28 @@ def validate_records(records):
             for key, expected, actual in differences[:20]
         ])
     return objects
+
+
+def validate_packaging_balances(records):
+    lots = {str(r["pk"]): r["fields"] for r in records if r["model"] == "magazzino.lotto"}
+    stocks = {str(r["pk"]): r["fields"] for r in records if r["model"] == "magazzino.giacenza"}
+    expected, actual = defaultdict(Decimal), defaultdict(Decimal)
+
+    def position(fields, suffix=""):
+        return (str(fields["lotto"]), str(fields["ubicazione" + suffix]),
+                fields["scaffale" + suffix], fields["piano" + suffix])
+
+    for stock in stocks.values():
+        actual[position(stock)] += Decimal(str(stock["quantita_confezionata"]))
+    for record in records:
+        fields = record["fields"]
+        if record["model"] == "magazzino.movimento" and fields["componente"] == "CONFEZIONATO":
+            for suffix, sign in (("_origine", -1), ("_destinazione", 1)):
+                if fields["ubicazione" + suffix] is not None:
+                    expected[position(fields, suffix)] += sign * Decimal(str(fields["quantita"]))
+        elif record["model"] == "produzione.sessioneproduzionesemplificata" and fields["tipo"] == "CONFEZIONAMENTO" and fields["stato"] == "CHIUSA" and fields["confezionamento_giacenza"] is not None:
+            stock = stocks[str(fields["confezionamento_giacenza"])]
+            expected[position(stock)] += Decimal(str(fields["quantita_finale_kg"] or 0))
+    for key in actual.keys() | expected.keys():
+        if lots[key[0]]["confezionamento_verificato"] and actual[key] != expected[key]:
+            raise ValidationError(f"Saldo confezionato incoerente: lotto {key[0]}, ubicazione {key[1]}, scaffale {key[2]}, piano {key[3]}.")

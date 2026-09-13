@@ -2,7 +2,13 @@ from decimal import Decimal
 from django import forms
 from django.core.exceptions import ValidationError
 from anagrafiche.models import Articolo, Fornitore, Ubicazione
-from magazzino.models import Giacenza, Lotto
+from magazzino.models import Giacenza, Lotto, Movimento
+
+
+def component_field():
+    return forms.ChoiceField(label="Stato dei pezzi movimentati", required=False,
+        choices=[("", "Seleziona per i prodotti finiti"), *Movimento.Componente.choices],
+        help_text="Per i prodotti finiti scegliere Confezionato o Non confezionato.")
 from produzione.models import Ricetta, TipoLavorazione, Lavorazione, RigaRicetta, RisorsaProduttiva, UnitaLavorazione
 from qualita.models import NonConformita, AzioneNonConformita
 
@@ -31,7 +37,9 @@ def stock_label(stock):
         position += " · piano " + stock.piano
     return (f"{stock.lotto.codice_lotto} · {stock.lotto.articolo.codice} — "
             f"{stock.lotto.articolo.descrizione} — {position} — "
-            f"disponibili {stock.quantita:g} {stock.lotto.articolo.unita_misura}")
+            f"disponibili {stock.quantita:g} {stock.lotto.articolo.unita_misura}"
+            + (f" · confezionati {stock.quantita_confezionata:g} · non confezionati {stock.quantita_non_confezionata:g}"
+               if stock.lotto.stato_prodotto == "PRODOTTO_FINITO" else ""))
 
 
 class StockChoiceField(forms.ModelChoiceField):
@@ -191,6 +199,8 @@ class OperationForm(forms.Form):
         elif operation == "nc_verifica":
             f["esito"] = forms.ChoiceField(label="Esito", choices=[("EFFICACE", "Efficace"), ("NON_EFFICACE", "Non efficace")])
             f["descrizione"] = forms.CharField(label="Verifica eseguita", widget=forms.Textarea(attrs={"rows": 3}))
+        if operation in {"trasferimento", "scarico", "rettifica", "nc_azione"}:
+            f["componente"] = component_field()
         f["note"] = forms.CharField(label="Motivazione" if operation in {"rettifica", "scarico", "interrompi", "nc_chiudi"} else "Note",
             required=operation in {"rettifica", "scarico", "interrompi", "nc_chiudi"}, widget=forms.Textarea(attrs={"rows": 3}))
 

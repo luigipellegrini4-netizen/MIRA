@@ -421,7 +421,7 @@ def execute(request, op, d, work=None, case=None):
             origin, target = (selected, None) if d["verso"] == "uscita" else (None, selected)
         movement_type = {"rettifica": "RETTIFICA", "trasferimento": "TRASFERIMENTO", "scarico": "SCARICO"}[op]
         MovementService.register(actor=actor, lotto=lot, tipo=movement_type,
-            quantita=d["quantita"], origine=origin, destinazione=target, note=note)
+            quantita=d["quantita"], origine=origin, destinazione=target, note=note, componente=d.get("componente", ""))
     elif op == "pianifica":
         cycle = ProductionCycleService.create(actor=actor, articolo=d["articolo"], note=note)
         WorkExecutionService.plan_batches(actor=actor, ciclo=cycle, tipo_lavorazione=d["tipo_lavorazione"], ricetta=d["ricetta"], numero_batch=d["numero_batch"])
@@ -462,7 +462,7 @@ def execute(request, op, d, work=None, case=None):
         NonConformityService.action(actor=actor, non_conformita=case, tipo_azione=d["tipo_azione"], descrizione=d["descrizione"],
             lotto=d["lotto"], quantita=d["quantita"],
             origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano) if stock else None,
-            destinazione=position(d, "destinazione"), lavorazione=None, note=note)
+            destinazione=position(d, "destinazione"), lavorazione=None, note=note, componente=d.get("componente", ""))
 
 
 @login_required

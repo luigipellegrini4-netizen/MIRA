@@ -25,6 +25,8 @@ class PackagingAuditTests(TestCase):
         self.assertEqual(self.stock.quantita, 600)
 
     def test_empty_scope_is_reported(self):
+        self.lot.stato_prodotto = "GENERICO"
+        self.lot.save()
         output = StringIO()
         call_command("verifica_confezionamento", stdout=output)
         self.assertIn("Controllati 0 lotti", output.getvalue())

@@ -35,7 +35,7 @@
                             <td><strong>{{ stock.ubicazione.nome }}</strong><small>{{ stock.ubicazione.codice }}</small></td>
                             <td>{% if stock.scaffale or stock.piano %}<strong>Scaffale {{ stock.scaffale|default:'—' }}</strong><small>Piano {{ stock.piano|default:'—' }}</small>{% else %}<span class="muted">Non specificati</span>{% endif %}</td>
                             <td>{{ stock.lotto.data_scadenza|date:'d/m/Y'|default:'—' }}</td>
-                            <td>{% if stock.lotto.stato_confezionamento != 'NON_APPLICABILE' %}<span class="pill neutral">{{ stock.lotto.get_stato_confezionamento_display }}</span><small>{{ stock.lotto.quantita_confezionata|floatformat:'-6' }} {{ stock.lotto.articolo.unita_misura }} confezionati</small>{% else %}—{% endif %}</td>
+                            <td>{% if stock.lotto.stato_prodotto == 'PRODOTTO_FINITO' %}{% if stock.lotto.confezionamento_verificato %}<strong>{{ stock.quantita_confezionata|floatformat:'-6' }} confezionati</strong><small>{{ stock.quantita_non_confezionata|floatformat:'-6' }} non confezionati</small>{% else %}Ripartizione da verificare{% endif %}{% else %}—{% endif %}</td>
                             <td class="number"><strong>{{ stock.quantita|floatformat:'-6' }}</strong> {{ stock.lotto.articolo.unita_misura }}</td>
                         </tr>{% endfor %}</tbody>
                     </table></div>

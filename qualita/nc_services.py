@@ -62,7 +62,7 @@ class NonConformityService:
     @staticmethod
     @transaction.atomic
     def action(*, actor, non_conformita, tipo_azione, descrizione, lotto=None, quantita=None,
-               origine=None, destinazione=None, lavorazione=None, note=""):
+               origine=None, destinazione=None, lavorazione=None, note="", componente=""):
         require_permission(actor, "can_manage_nc")
         description = required_text(descrizione, "Descrizione azione")
         if tipo_azione not in AzioneNonConformita.TipoAzione.values:
@@ -78,7 +78,7 @@ class NonConformityService:
                 raise ValidationError("Il movimento deve riferirsi al lotto della NC.")
             with _movement_for_nc(nc.pk, tipo_azione):
                 movement = MovementService.register(actor=actor, lotto=lot, tipo=tipo_azione, quantita=quantita,
-                    origine=origine, destinazione=destinazione, note=f"NC {nc.numero}: {description}")
+                    origine=origine, destinazione=destinazione, note=f"NC {nc.numero}: {description}", componente=componente)
         elif any(value is not None for value in (lotto, quantita, origine, destinazione)):
             raise ValidationError("Le azioni non fisiche non accettano parametri di magazzino.")
         with _nc_write():

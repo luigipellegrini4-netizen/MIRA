@@ -39,7 +39,7 @@ class Command(BaseCommand):
             actual = {(s.ubicazione_id, s.scaffale, s.piano): s.quantita for s in stocks}
             if any(balances.get(key, 0) != actual.get(key, 0) for key in balances.keys() | actual.keys()):
                 reasons.append("giacenze non coincidenti con il saldo dei movimenti per posizione")
-            if physical > 0 and lot.quantita_confezionata > 0:
+            if physical > 0 and not lot.confezionamento_verificato:
                 reasons.append("ripartizione confezionato/non confezionato da verificare per posizione; il totale storico non è un saldo corrente")
             if reasons:
                 issues += 1
@@ -52,5 +52,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  - {reason}")
             for stock in stocks:
                 if stock.quantita:
-                    self.stdout.write(f"  {stock.ubicazione.codice} / {stock.scaffale or '-'} / {stock.piano or '-'}: {stock.quantita:g}")
+                    self.stdout.write(f"  {stock.ubicazione.codice} / {stock.scaffale or '-'} / {stock.piano or '-'}: {stock.quantita:g}"
+                        + (f"; confezionati {stock.quantita_confezionata:g}; non confezionati {stock.quantita_non_confezionata:g}"
+                           if lot.confezionamento_verificato else "; ripartizione da verificare"))
         self.stdout.write(f"Controllati {count} lotti; {issues} da verificare. Nessun dato modificato.")

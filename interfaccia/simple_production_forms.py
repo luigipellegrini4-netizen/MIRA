@@ -123,6 +123,7 @@ class OpenPackagingForm(forms.Form):
         super().__init__(*args, **kwargs)
         candidates = SessioneProduzioneSemplificata.objects.filter(
             tipo="ETICHETTATURA", stato="CHIUSA", lotto_prodotto__giacenze__quantita__gt=0,
+            lotto_prodotto__confezionamento_verificato=True,
         ).exclude(lotto_prodotto__stato_confezionamento="CONFEZIONATO").select_related(
             "ricetta__articolo", "lotto_prodotto"
         ).distinct()
@@ -346,6 +347,8 @@ class SimpleNCTakeChargeForm(forms.Form):
 
 
 class SimpleNCActionForm(forms.Form):
+    from interfaccia.forms import component_field
+    componente = component_field()
     tipo = forms.ChoiceField(
         label="Tipo di azione", choices=[("AZIONE", "Azione documentale"), ("SCARTO", "Scarto dal magazzino")],
         widget=forms.Select(attrs={"data-nc-action-type": ""}),
@@ -519,6 +522,7 @@ class LabelingSummaryForm(forms.Form):
 
 
 class PackagingSummaryForm(forms.Form):
+    giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), label="Posizione da confezionare")
     lotto_display = forms.CharField(label="Lotto prodotto finito", disabled=True)
     disponibile_display = forms.CharField(label="Disponibilità attuale in magazzino", disabled=True)
     residuo_display = forms.CharField(label="Quantità massima confezionabile", disabled=True)
@@ -527,6 +531,13 @@ class PackagingSummaryForm(forms.Form):
     def __init__(self, *args, session, **kwargs):
         super().__init__(*args, **kwargs)
         lot = session.lotto_origine.lotto_prodotto
+        from django.db.models import F
+        self.fields["giacenza"].queryset = Giacenza.objects.filter(
+            lotto=lot, ubicazione__attiva=True, quantita__gt=F("quantita_confezionata")
+        ).select_related("lotto__articolo", "ubicazione")
+        self.fields["giacenza"].label_from_instance = stock_label
+        if self.fields["giacenza"].queryset.count() == 1:
+            self.fields["giacenza"].initial = self.fields["giacenza"].queryset.first()
         total = session.lotto_origine.quantita_finale_kg or 0
         from produzione.services.packaging_availability import packaging_availability
         available, self.remaining = packaging_availability(lot, total)

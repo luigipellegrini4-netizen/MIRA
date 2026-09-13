@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.core.exceptions import PermissionDenied
 
 
-def quarantine_balances(*, lotto=None, non_conformita=None):
+def quarantine_balances(*, lotto=None, non_conformita=None, componente=None):
     """Saldo vincolato per NC/lotto/posizione, derivato solo dalle azioni fisiche.
 
     Il chiamante che scrive stock deve possedere il lock Lotto. La lettura per
@@ -15,6 +15,10 @@ def quarantine_balances(*, lotto=None, non_conformita=None):
         actions = actions.filter(movimento__lotto_id=getattr(lotto, "pk", lotto))
     if non_conformita is not None:
         actions = actions.filter(non_conformita_id=getattr(non_conformita, "pk", non_conformita))
+    if componente == "SFUSO":
+        actions = actions.exclude(movimento__componente="CONFEZIONATO")
+    elif componente is not None:
+        actions = actions.filter(movimento__componente=componente)
     held = defaultdict(Decimal)
     for action in actions.select_related("movimento").order_by("pk"):
         movement = action.movimento

@@ -36,6 +36,7 @@ class SessioneProduzioneSemplificata(ValidatedModel):
     numero_lavorazioni_previste = models.PositiveIntegerField(null=True, blank=True)
     lotto_prodotto = models.OneToOneField("magazzino.Lotto", null=True, blank=True, on_delete=models.PROTECT, related_name="sessione_semplificata_origine")
     quantita_finale_kg = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    confezionamento_giacenza = models.ForeignKey("magazzino.Giacenza", null=True, blank=True, on_delete=models.PROTECT, related_name="confezionamenti")
     igienizzazione_confermata_il = models.DateTimeField(null=True, blank=True)
     aperta_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sessioni_semplificate_aperte")
     aperta_il = models.DateTimeField(default=timezone.now)

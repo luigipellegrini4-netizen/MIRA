@@ -30,11 +30,15 @@ class SalesStockSelect(forms.Select):
         option = super().create_option(name, value, label, selected, index, subindex, attrs)
         if value and getattr(value, "instance", None):
             option["attrs"]["data-available"] = value.instance.quantita
+            option["attrs"]["data-packed"] = value.instance.quantita_confezionata
+            option["attrs"]["data-loose"] = value.instance.quantita_non_confezionata
             option["attrs"]["data-base-label"] = str(label)
         return option
 
 
 class RigaVenditaForm(forms.Form):
+    from interfaccia.forms import component_field
+    componente = component_field()
     giacenza = forms.ModelChoiceField(queryset=Giacenza.objects.none(), required=False, label="Lotto confezionato e posizione", widget=SalesStockSelect(attrs={"data-sales-stock": ""}))
     quantita = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, required=False, widget=forms.NumberInput(attrs={"step": "0.000001", "data-sales-quantity": ""}))
 
@@ -47,7 +51,8 @@ class RigaVenditaForm(forms.Form):
         self.fields["giacenza"].label_from_instance = lambda stock: (
             f"{stock.lotto.codice_lotto} · {stock.lotto.articolo.codice} — {stock.lotto.articolo.descrizione} — "
             f"{stock.ubicazione.codice}/{stock.scaffale or '-'}/{stock.piano or '-'} — {stock.quantita:g} "
-            f"{stock.lotto.articolo.unita_misura} — {stock.lotto.get_stato_confezionamento_display()}"
+            f"{stock.lotto.articolo.unita_misura} — confezionati {stock.quantita_confezionata:g}"
+            f" — non confezionati {stock.quantita_non_confezionata:g}"
         )
 
     def clean(self):
@@ -55,8 +60,10 @@ class RigaVenditaForm(forms.Form):
         stock, quantity = data.get("giacenza"), data.get("quantita")
         if bool(stock) != bool(quantity):
             raise forms.ValidationError("Indicare sia il lotto sia la quantità.")
-        if stock and quantity > stock.quantita:
+        if stock and quantity is not None and quantity > stock.quantita:
             self.add_error("quantita", f"Disponibilità insufficiente: {stock.quantita:g}.")
+        if stock and not data.get("componente"):
+            self.add_error("componente", "Scegliere Confezionato o Non confezionato.")
         return data
 
 
@@ -71,12 +78,14 @@ class BaseRigheVenditaFormSet(BaseFormSet):
             stock, quantity = form.cleaned_data.get("giacenza"), form.cleaned_data.get("quantita")
             if not stock or not quantity:
                 continue
-            stocks[stock.pk] = stock
-            totals[stock.pk] = totals.get(stock.pk, 0) + quantity
+            key = (stock.pk, form.cleaned_data["componente"])
+            stocks[key] = stock
+            totals[key] = totals.get(key, 0) + quantity
         for stock_id, total in totals.items():
-            if total > stocks[stock_id].quantita:
+            available = stocks[stock_id].quantita_confezionata if stock_id[1] == "CONFEZIONATO" else stocks[stock_id].quantita_non_confezionata
+            if total > available:
                 raise forms.ValidationError(
-                    f"Le righe del lotto {stocks[stock_id].lotto.codice_lotto} superano la disponibilità: {stocks[stock_id].quantita:g}."
+                    f"Le righe del lotto {stocks[stock_id].lotto.codice_lotto} superano la disponibilità {stock_id[1]}: {available:g}."
                 )
 
 

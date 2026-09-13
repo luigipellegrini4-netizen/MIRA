@@ -21,7 +21,7 @@ class PackagingAvailabilityTests(TestCase):
         article = m("anagrafiche", "Articolo").objects.create(codice="CONF", descrizione="Confettura", categoria=cat, unita_misura="PZ")
         recipe = m("produzione", "Ricetta").objects.create(articolo=article, nome="Confettura", versione="1")
         location = m("anagrafiche", "Ubicazione").objects.create(codice="MAG", nome="Magazzino")
-        self.lot = m("magazzino", "Lotto").objects.create(articolo=article, codice_lotto="260913", tipo="PRODUZIONE")
+        self.lot = m("magazzino", "Lotto").objects.create(articolo=article, codice_lotto="260913", tipo="PRODUZIONE", stato_prodotto="PRODOTTO_FINITO")
         self.stock = m("magazzino", "Giacenza").objects.create(lotto=self.lot, ubicazione=location, quantita=600)
         sessions = m("produzione", "SessioneProduzioneSemplificata")
         source = sessions.objects.create(tipo="ETICHETTATURA", stato="CHIUSA", ricetta=recipe,
@@ -53,9 +53,11 @@ class PackagingAvailabilityTests(TestCase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.stato, "APERTA")
 
-    def test_historical_limit_is_also_preserved(self):
+    def test_current_packed_stock_limits_further_packaging(self):
         self.lot.quantita_confezionata = 550
         self.lot.save()
+        self.stock.quantita_confezionata = 550
+        self.stock.save()
         with self.assertRaises(ValidationError):
             self.close("51")
         self.close("50")

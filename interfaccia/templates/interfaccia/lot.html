@@ -14,7 +14,7 @@
 <section class="panel space-top">
   <div class="panel-head"><h2>Posizioni del lotto</h2></div>
   {% for stock in stocks %}
-    <div class="list-row"><span>{{ stock.ubicazione.nome }} · {{ stock.scaffale }} {{ stock.piano }}</span><strong>{{ stock.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
+    <div class="list-row"><span>{{ stock.ubicazione.nome }} · {{ stock.scaffale }} {{ stock.piano }}{% if lot.stato_prodotto == 'PRODOTTO_FINITO' %}<small>{% if lot.confezionamento_verificato %}{{ stock.quantita_confezionata|floatformat:'-6' }} confezionati · {{ stock.quantita_non_confezionata|floatformat:'-6' }} non confezionati{% else %}Ripartizione da verificare{% endif %}</small>{% endif %}</span><strong>{{ stock.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
   {% empty %}<div class="empty">Nessuna giacenza consultabile.</div>{% endfor %}
 </section>
 {% if sales_movements %}

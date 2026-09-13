@@ -192,8 +192,9 @@ class ProduzioneSemplificataService:
         source = SessioneProduzioneSemplificata.objects.select_for_update().select_related("lotto_prodotto").get(pk=lotto_origine.pk)
         if source.tipo != "ETICHETTATURA" or source.stato != "CHIUSA" or not source.lotto_prodotto_id:
             raise ValidationError("Selezionare un lotto etichettato chiuso.")
-        if source.lotto_prodotto.stato_confezionamento == Lotto.StatoConfezionamento.CONFEZIONATO:
-            raise ValidationError("Il lotto è già interamente confezionato.")
+        from .packaging_availability import packaging_availability
+        if packaging_availability(source.lotto_prodotto, source.quantita_finale_kg)[1] <= 0:
+            raise ValidationError("Il lotto non ha quantità non confezionate disponibili o richiede verifica storica.")
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="CONFEZIONAMENTO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo Confezionamento ha già una sessione aperta.")
         return _record(SessioneProduzioneSemplificata(
@@ -328,7 +329,7 @@ class ProduzioneSemplificataService:
     @staticmethod
     @transaction.atomic
     def registra_azione_nc(*, actor, non_conformita, tipo, descrizione, origine_stock=None,
-                           quantita=None, note=""):
+                           quantita=None, note="", componente=""):
         require_permission(actor, "can_manage_nc")
         nc = NonConformitaSessioneSemplificata.objects.select_for_update().get(pk=non_conformita.pk)
         if nc.stato != nc.Stato.IN_GESTIONE:
@@ -346,7 +347,7 @@ class ProduzioneSemplificataService:
             with _movement_for_nc(-nc.pk, Movimento.Tipo.SCARTO):
                 movement = MovementService.register(
                     actor=actor, lotto=origine_stock.lotto, tipo=Movimento.Tipo.SCARTO,
-                    quantita=quantita, origine=source, note=f"Scarto NC P-{nc.pk}: {descrizione}",
+                    quantita=quantita, origine=source, note=f"Scarto NC P-{nc.pk}: {descrizione}", componente=componente,
                 )
         elif tipo != AzioneNCSessioneSemplificata.Tipo.AZIONE:
             raise ValidationError("Tipo di azione non riconosciuto.")
@@ -523,7 +524,7 @@ class ProduzioneSemplificataService:
 
     @staticmethod
     @transaction.atomic
-    def chiudi_confezionamento(*, actor, sessione, quantita_confezionata):
+    def chiudi_confezionamento(*, actor, sessione, quantita_confezionata, giacenza=None):
         from magazzino.models import Lotto
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().select_related(
@@ -536,14 +537,30 @@ class ProduzioneSemplificataService:
         from .packaging_availability import packaging_availability
         from magazzino.services.types import quantity
         quantita_confezionata = quantity(quantita_confezionata)
+        from magazzino.models import Giacenza
+        from magazzino.models.protections import _stock_write
+        from qualita.nc_selectors import quarantine_balances, blocked_quantity
+        stocks = Giacenza.objects.select_for_update().filter(lotto=lot, ubicazione__attiva=True, quantita__gt=0)
+        if giacenza is not None:
+            stocks = stocks.filter(pk=giacenza.pk)
+        candidates = list(stocks)
+        if len(candidates) != 1:
+            raise ValidationError("Selezionare una posizione del lotto da confezionare.")
+        stock = candidates[0]
+        blocked = blocked_quantity(quarantine_balances(lotto=lot, componente="SFUSO"),
+            lotto_id=lot.pk, ubicazione_id=stock.ubicazione_id, scaffale=stock.scaffale, piano=stock.piano)
+        if not lot.confezionamento_verificato or quantita_confezionata > stock.quantita_non_confezionata - blocked:
+            raise ValidationError("Quantità non confezionata insufficiente nella posizione scelta o saldo storico da verificare.")
         available, remaining = packaging_availability(lot, total)
         if quantita_confezionata > remaining:
             raise ValidationError(f"Quantità superiore al limite confezionabile: {remaining:g}. Disponibilità attuale: {available:g}.")
         lot.quantita_confezionata += quantita_confezionata
-        lot.stato_confezionamento = (
-            Lotto.StatoConfezionamento.CONFEZIONATO if lot.quantita_confezionata >= total
-            else Lotto.StatoConfezionamento.PARZIALE
-        )
+        stock.quantita_confezionata += quantita_confezionata
+        with _stock_write():
+            stock.save()
+        from magazzino.services.packaging import refresh_packaging_state
+        refresh_packaging_state(lot)
+        current.confezionamento_giacenza = stock
         # Aggiornamento riservato al servizio: la sessione chiusa registra autore,
         # data e quantità nella stessa transazione, come audit del confezionamento.
         from django.db import models

@@ -9,7 +9,7 @@ from django.db import connection, transaction, IntegrityError
 from django.utils import timezone
 from .backup_validation import validate_records
 
-FORMAT = "MIRA_BACKUP_V1"
+FORMAT = "MIRA_BACKUP_V2"
 EXCLUDED = {"migrations.Migration"}
 
 
@@ -34,7 +34,7 @@ def read_backup(raw):
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise ValidationError("Il file non è un JSON MIRA valido.") from None
     expected = [m._meta.label for m in backup_models()]
-    if not isinstance(payload, dict) or payload.get("format") != FORMAT or payload.get("models") != expected:
+    if not isinstance(payload, dict) or payload.get("format") not in {FORMAT, "MIRA_BACKUP_V1"} or payload.get("models") != expected:
         raise ValidationError("Il backup non è compatibile con questa versione di MIRA.")
     if not isinstance(payload.get("records"), list) or not isinstance(payload.get("counts"), dict):
         raise ValidationError("Struttura del backup incompleta.")
@@ -48,11 +48,43 @@ def read_backup(raw):
         actual[model._meta.label] += 1
     if actual != payload["counts"]:
         raise ValidationError("Il numero dei record non corrisponde all’indice del backup.")
+    if payload["format"] == "MIRA_BACKUP_V1":
+        upgrade_packaging_backup(payload)
     try:
         validate_records(payload["records"])
     except (ValueError, TypeError, KeyError) as exc:
         raise ValidationError("Valori o riferimenti non validi nel backup.") from exc
     return payload
+
+
+def upgrade_packaging_backup(payload):
+    """I backup precedenti non contengono una ripartizione per posizione."""
+    from decimal import Decimal
+    records = payload["records"]
+    lots = {str(r["pk"]): r["fields"] for r in records if r["model"] == "magazzino.lotto"}
+    sessions = {str(r["pk"]): r["fields"] for r in records if r["model"] == "produzione.sessioneproduzionesemplificata"}
+    ambiguous = set()
+    try:
+        for pk, lot in lots.items():
+            if Decimal(str(lot.get("quantita_confezionata", 0))) > 0:
+                ambiguous.add(pk)
+        for session in sessions.values():
+            if session.get("tipo") == "CONFEZIONAMENTO" and session.get("stato") == "CHIUSA" and Decimal(str(session.get("quantita_finale_kg") or 0)) > 0:
+                source = sessions.get(str(session.get("lotto_origine")), {})
+                ambiguous.add(str(source.get("lotto_prodotto")))
+            session.setdefault("confezionamento_giacenza", None)
+    except ArithmeticError as exc:
+        raise ValidationError("Quantità non valida nel backup precedente.") from exc
+    for pk, lot in lots.items():
+        lot.setdefault("confezionamento_verificato", pk not in ambiguous)
+    for record in records:
+        fields = record["fields"]
+        if record["model"] == "magazzino.giacenza":
+            fields.setdefault("quantita_confezionata", "0")
+        elif record["model"] == "magazzino.movimento":
+            lot = lots.get(str(fields.get("lotto")), {})
+            fields.setdefault("componente", "SFUSO" if lot.get("stato_prodotto") == "PRODOTTO_FINITO" and lot.get("confezionamento_verificato") else "")
+    payload["format"] = FORMAT
 
 
 def restore_backup(payload):

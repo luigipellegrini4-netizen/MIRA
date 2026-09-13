@@ -1,58 +1,64 @@
-# Confezionamento parziale: intervento da implementare
+# Confezionamento parziale
 
-## Problema verificato
+La giacenza mantiene il totale e la quantità confezionata per ubicazione,
+scaffale e piano. La differenza è la quantità non confezionata.
+Articolo e codice lotto rimangono invariati.
 
-Il lotto conserva `quantita_confezionata` cumulativa. Le giacenze e i movimenti
-non distinguono pezzi confezionati e non confezionati. Il limite attuale,
-minimo tra disponibilità fisica e residuo storico, non basta dopo vendite
-o scarti: potrebbe permettere di confezionare nuovamente pezzi già confezionati.
+## Uso
 
-## Comportamento previsto
+Alla chiusura del confezionamento scegliere una posizione e la quantità
+realmente confezionata. Se il materiale è su più posizioni, registrare una
+sessione per posizione. La chiusura conserva il totale fisico e registra
+posizione, quantità, operatore e data nella sessione.
 
-- Conservare articolo e codice lotto.
-- Distinguere per ubicazione, scaffale e piano quantità confezionata,
-  non confezionata e, per gli storici ambigui, da classificare.
-- Alla chiusura del confezionamento selezionare le posizioni e trasformare
-  quantità non confezionate in confezionate senza cambiare il totale fisico.
-- Vendite, scarichi, rettifiche e azioni NC devono indicare quale quantità
-  movimentano. L'utente ha confermato la scelta esplicita tra confezionato e
-  non confezionato anche nelle vendite.
-- I trasferimenti conservano la distinzione nella destinazione.
-- Le quarantene conservano anche la distinzione della quantità vincolata
-  per ciascuna NC, per evitare reintegri o scarti della componente sbagliata.
-- Mostrare i residui separati in giacenze, vendita e chiusura confezionamento.
+Nelle vendite, nei trasferimenti, negli scarichi, nelle rettifiche e nelle
+azioni NC sui prodotti finiti scegliere Confezionato o Non confezionato.
+Per movimentare entrambe le componenti registrare due righe o operazioni.
+Il controllo delle disponibilità è ripetuto al salvataggio sotto lock del lotto.
+Le quarantene riservano separatamente le componenti per ciascuna NC.
 
-## Invarianti e integrazioni
+Giacenze e scheda lotto mostrano i due saldi per posizione. I movimenti
+mostrano la componente. La vendita propone il residuo delle righe precedenti
+per la componente selezionata.
 
-La somma delle componenti deve coincidere con la giacenza fisica, senza valori
-negativi. La disponibilità di ciascuna componente deve escludere la rispettiva
-quarantena. Aggiornamenti e registrazioni storiche devono essere atomici,
-serializzati dal lock sul lotto già usato dal servizio movimenti.
+Esempio: 600 pezzi, confezionamento di 200, vendita di 100 confezionati:
+restano 100 confezionati e 400 non confezionati. Se la vendita riguarda invece
+100 non confezionati, restano 200 confezionati e 300 non confezionati.
 
-Adeguare anche import/export CSV, backup/ripristino e azzeramento: un import
-non deve perdere la classificazione né crearla arbitrariamente.
+## CSV e backup
 
-## Dati esistenti
+Il CSV giacenze contiene `quantita` totale e `quantita_confezionata`.
+Per i prodotti finiti quest'ultima colonna deve essere compilata, anche con 0.
+L'import produce rettifiche distinte delle due componenti e rispetta le
+quarantene. Per gli altri articoli i vecchi CSV senza la colonna restano accettati.
 
-Il totale confezionato storico non determina la classificazione corrente
-dopo uscite o spostamenti. Preparare una verifica in sola lettura e una
-procedura esplicita di riconciliazione per posizione. Nessuna redistribuzione
-automatica dei casi ambigui. Conservare il totale storico come dato distinto
-dalla quantità confezionata attualmente in magazzino.
+I backup V2 conservano saldi, componenti e posizione di confezionamento.
+I backup V1 vengono convertiti in lettura: i lotti con confezionamenti storici
+positivi sono segnalati per riconciliazione e non vengono redistribuiti a caso.
 
-## Verifiche necessarie
+## Aggiornamento
 
-Esempio base: 600 pezzi, 200 confezionati, vendita di 100 confezionati:
-residuo 100 confezionati e 400 non confezionati. Vendita invece di 100 non
-confezionati: residuo 200 confezionati e 300 non confezionati.
+Applicare le migrazioni magazzino 0008 e produzione 0020, eseguire collectstatic
+e riavviare il server. Non usare contemporaneamente versioni vecchie e nuove
+dell'applicazione sullo stesso database.
 
-Verificare trasferimenti parziali, scarti ordinari e da NC, quarantena e
-reintegro, rettifiche, doppia chiusura, concorrenza con vendita, import/export
-e ripristino. Verificare sia SQLite sia MySQL.
+I saldi locali verificati erano 30 PZ fragola e 100 PZ albicocca; quello online
+23 PZ fragola. Non risultavano confezionamenti: la migrazione li lascia nelle
+posizioni esistenti e li considera non confezionati.
+Se dopo la verifica sono stati registrati confezionamenti, i relativi lotti
+sono marcati da verificare: la riconciliazione di quei casi non è automatica.
+La migrazione dei dati non è reversibile automaticamente.
 
-Questo documento descrive il lavoro da fare: non introduce modifiche al DB
-o al comportamento applicativo.
+`python manage.py verifica_confezionamento` resta un controllo in sola lettura.
 
-Diagnosi disponibile: `python manage.py verifica_confezionamento`. Il comando
-confronta saldi fisici e movimenti per posizione, totale storico e sessioni
-chiuse, ed elenca i lotti la cui ripartizione deve essere verificata.
+## Validazione
+
+29 test mirati su SQLite superati: servizi, vendita, CSV, backup nuovo e
+precedente, inizializzazione dei saldi e regressioni precedenti.
+MySQL e concorrenza reale tra connessioni non verificati in questa sessione.
+
+La suite estesa ha inoltre segnalato due errori preesistenti, riprodotti
+sul commit 96a8c92: un test vendite che attende ValidationError invece di
+PermissionDenied e un test al limite numerico Decimal su SQLite.
+Un test NC basato sull'ordine degli orari ha avuto un fallimento intermittente;
+questi punti restano separati dal confezionamento e da approfondire.

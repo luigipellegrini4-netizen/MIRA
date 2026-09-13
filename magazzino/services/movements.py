@@ -46,7 +46,7 @@ class MovementService:
 
     @classmethod
     @transaction.atomic
-    def register(cls, *, actor, lotto, tipo, quantita, origine=None, destinazione=None, note="", input_lavorazione=None, output_lavorazione=None, sessione_semplificata=None):
+    def register(cls, *, actor, lotto, tipo, quantita, origine=None, destinazione=None, note="", input_lavorazione=None, output_lavorazione=None, sessione_semplificata=None, componente=""):
         from qualita.nc_protections import _nc_movement
         nc_context = _nc_movement.get()
         quality_movement = tipo in {Movimento.Tipo.QUARANTENA, Movimento.Tipo.REINTEGRO, Movimento.Tipo.SCARTO}
@@ -134,6 +134,16 @@ class MovementService:
             lot = Lotto.objects.select_for_update().get(pk=persisted_id(lotto, "Lotto"))
         except Lotto.DoesNotExist:
             raise ValidationError("Il lotto non esiste.") from None
+        tracked = lot.stato_prodotto == "PRODOTTO_FINITO"
+        if tracked:
+            if not lot.confezionamento_verificato:
+                raise ValidationError("Ripartizione storica del confezionamento da verificare per questo lotto.")
+            if tipo == Movimento.Tipo.PRODUZIONE:
+                componente = componente or "SFUSO"
+            if componente not in Movimento.Componente.values:
+                raise ValidationError("Scegliere Confezionato o Non confezionato per il prodotto finito.")
+        else:
+            componente = ""
         if tipo == Movimento.Tipo.CARICO and lot.tipo != Lotto.Tipo.ACQUISTO:
             raise ValidationError("CARICO ammesso soltanto per lotti di acquisto.")
         locations = lock_locations((origine, destinazione))
@@ -143,11 +153,12 @@ class MovementService:
             if source is None or source.quantita < amount:
                 raise InsufficientStock("Stock insufficiente nella posizione di origine.")
             from qualita.nc_selectors import quarantine_balances, blocked_quantity
-            balances = quarantine_balances(lotto=lot)
+            balances = quarantine_balances(lotto=lot, componente=componente if tracked else None)
             position_key = dict(lotto_id=lot.pk, ubicazione_id=origine.ubicazione_id, scaffale=origine.scaffale, piano=origine.piano)
             blocked = blocked_quantity(balances, **position_key)
             owned = blocked_quantity(balances, **position_key, nc_id=nc_context[0]) if quality_movement else 0
-            available = source.quantita - blocked
+            physical = (source.quantita_confezionata if componente == "CONFEZIONATO" else source.quantita_non_confezionata) if tracked else source.quantita
+            available = physical - blocked
             if tipo == Movimento.Tipo.REINTEGRO:
                 available = owned
             elif tipo == Movimento.Tipo.SCARTO:
@@ -161,6 +172,7 @@ class MovementService:
                 target = Giacenza(lotto=lot, **destinazione.stock_lookup(), quantita=0)
 
         movement = Movimento(tipo=tipo, lotto=lot, quantita=amount, eseguito_da=actor, note=note, input_lavorazione=input_record, output_lavorazione=output_record, sessione_semplificata=sessione_semplificata)
+        movement.componente = componente
         for suffix, position in (("origine", origine), ("destinazione", destinazione)):
             if position is not None:
                 setattr(movement, f"ubicazione_{suffix}", locations[position.ubicazione_id])
@@ -171,9 +183,13 @@ class MovementService:
         movement.full_clean()
         if source is not None:
             source.quantita -= amount
+            if componente == "CONFEZIONATO":
+                source.quantita_confezionata -= amount
             source.full_clean()
         if target is not None:
             target.quantita += amount
+            if componente == "CONFEZIONATO":
+                target.quantita_confezionata += amount
             target.full_clean()
         with _stock_write():
             movement.save()
@@ -181,4 +197,6 @@ class MovementService:
                 source.save()
             if target is not None:
                 target.save()
+        from .packaging import refresh_packaging_state
+        refresh_packaging_state(lot)
         return movement

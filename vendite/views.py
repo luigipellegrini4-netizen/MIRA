@@ -52,7 +52,7 @@ def sale_new(request):
                         stock = row["giacenza"]
                         movement = MovementService.register(actor=request.user, lotto=stock.lotto, tipo=Movimento.Tipo.VENDITA,
                             quantita=row["quantita"], origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
-                            note=f"Vendita {sale.numero_documento} · {sale.cliente.ragione_sociale}")
+                            note=f"Vendita {sale.numero_documento} · {sale.cliente.ragione_sociale}", componente=row.get("componente", ""))
                         RigaVendita.objects.create(vendita=sale, movimento=movement)
             except ValidationError as exc:
                 form.add_error(None, " · ".join(exc.messages))

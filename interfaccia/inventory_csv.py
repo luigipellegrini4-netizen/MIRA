@@ -18,7 +18,7 @@ HEADERS = {
     "ricevimenti": ["articolo", "fornitore", "codice_lotto", "data_produzione", "data_scadenza", "quantita",
                     "ubicazione", "scaffale", "piano", "data_ricevimento", "numero_ddt", "data_ddt", "note"],
     "lotti": ["articolo", "codice_lotto", "tipo", "fornitore", "data_produzione", "data_scadenza", "note"],
-    "giacenze": ["articolo", "codice_lotto", "fornitore", "ubicazione", "scaffale", "piano", "quantita"],
+    "giacenze": ["articolo", "codice_lotto", "fornitore", "ubicazione", "scaffale", "piano", "quantita", "quantita_confezionata"],
 }
 
 
@@ -54,7 +54,7 @@ def csv_response_rows(kind):
         return receipt_rows()
     objects = Giacenza.objects.filter(quantita__gt=0).select_related("lotto__articolo", "lotto__fornitore", "ubicazione").order_by("ubicazione__codice", "scaffale", "piano")
     return ([s.lotto.articolo.codice, s.lotto.codice_lotto, s.lotto.fornitore.codice if s.lotto.fornitore else "",
-             s.ubicazione.codice, s.scaffale, s.piano, s.quantita] for s in objects)
+             s.ubicazione.codice, s.scaffale, s.piano, s.quantita, s.quantita_confezionata] for s in objects)
 
 
 def read_upload(upload):
@@ -85,7 +85,7 @@ def _bool(value):
 def inspect_rows(kind, rows):
     if not rows:
         raise ValidationError("Il CSV non contiene righe di dati.")
-    missing = [h for h in HEADERS[kind] if rows and h not in rows[0]]
+    missing = [h for h in HEADERS[kind] if rows and h not in rows[0] and h != "quantita_confezionata"]
     if missing:
         raise ValidationError("Colonne mancanti: " + ", ".join(missing))
     report = []
@@ -145,10 +145,19 @@ def inspect_rows(kind, rows):
                 lots = lots.filter(fornitore__codice=row["fornitore"]) if row["fornitore"] else lots.filter(fornitore__isnull=True)
                 lot = lots.get(); location = Ubicazione.objects.get(codice=row["ubicazione"], attiva=True)
                 target = Decimal(row["quantita"])
+                if lot.stato_prodotto == "PRODOTTO_FINITO" and not row.get("quantita_confezionata"):
+                    raise ValueError("per i prodotti finiti compilare quantita_confezionata (anche 0)")
+                packed = Decimal(row.get("quantita_confezionata") or "0")
+                if not packed.is_finite() or not target.is_finite() or not 0 <= packed <= target:
+                    raise ValueError("quantità confezionata non valida")
+                if packed and lot.stato_prodotto != "PRODOTTO_FINITO":
+                    raise ValueError("quantità confezionata ammessa soltanto sui prodotti finiti")
+                if not lot.confezionamento_verificato:
+                    raise ValueError("ripartizione storica del lotto da verificare")
                 if not target.is_finite() or target < 0:
                     raise ValueError("quantità finale non valida")
                 current = Giacenza.objects.filter(lotto=lot, ubicazione=location, scaffale=row["scaffale"].upper(), piano=row["piano"].upper()).values_list("quantita", flat=True).first() or Decimal("0")
-                action = "Nessuna modifica" if current == target else f"Rettifica {current:g} → {target:g}"
+                action = f"Saldo finale {target:g}, di cui confezionati {packed:g}"
             report.append({"line": number, "action": action, "error": "", "row": row})
         except (ValueError, InvalidOperation, ValidationError, Articolo.DoesNotExist, CategoriaArticolo.DoesNotExist, Fornitore.DoesNotExist, Ubicazione.DoesNotExist, Lotto.DoesNotExist, Lotto.MultipleObjectsReturned) as exc:
             message = " · ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
@@ -201,10 +210,17 @@ def apply_rows(kind, rows, actor, reason):
             article = Articolo.objects.get(codice=row["articolo"]); lots = Lotto.objects.filter(articolo=article, codice_lotto=row["codice_lotto"])
             lot = (lots.filter(fornitore__codice=row["fornitore"]) if row["fornitore"] else lots.filter(fornitore__isnull=True)).get()
             location = Ubicazione.objects.get(codice=row["ubicazione"]); position = Position(location.pk, row["scaffale"], row["piano"])
-            current = Giacenza.objects.filter(lotto=lot, **position.stock_lookup()).values_list("quantita", flat=True).first() or Decimal("0")
+            lot = Lotto.objects.select_for_update().get(pk=lot.pk)
+            stock = Giacenza.objects.filter(lotto=lot, **position.stock_lookup()).first()
+            current = stock.quantita if stock else Decimal("0")
             target = Decimal(row["quantita"])
-            if target != current:
-                MovementService.register(actor=actor, lotto=lot, tipo=Movimento.Tipo.RETTIFICA, quantita=abs(target-current),
-                    origine=position if target < current else None, destinazione=position if target > current else None,
-                    note=f"Importazione inventario CSV — {reason}"); changed += 1
+            packed = Decimal(row.get("quantita_confezionata") or "0")
+            old_packed = stock.quantita_confezionata if stock else Decimal("0")
+            deltas = [("CONFEZIONATO", packed-old_packed), ("SFUSO", (target-packed)-(current-old_packed))]
+            for component, delta in sorted(deltas, key=lambda item: item[1]):
+                if delta:
+                    MovementService.register(actor=actor, lotto=lot, tipo=Movimento.Tipo.RETTIFICA, quantita=abs(delta),
+                        origine=position if delta < 0 else None, destinazione=position if delta > 0 else None,
+                        componente=component, note=f"Importazione inventario CSV — {reason}")
+                    changed += 1
     return changed
