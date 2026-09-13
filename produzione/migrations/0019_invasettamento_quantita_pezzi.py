@@ -31,7 +31,16 @@ def correggi_quantita_invasettate(apps, schema_editor):
         if production_movements.count() != 1:
             continue
         movement = production_movements.first()
+        if Movimento.objects.filter(lotto_id=session.lotto_prodotto_id).exclude(pk=movement.pk).exists():
+            continue
         stocks = Giacenza.objects.filter(lotto_id=session.lotto_prodotto_id).order_by("pk")
+        if stocks.count() != 1:
+            continue
+        first = stocks.first()
+        if (first.ubicazione_id, first.scaffale, first.piano) != (
+            movement.ubicazione_destinazione_id, movement.scaffale_destinazione, movement.piano_destinazione
+        ):
+            continue
         stock_total = stocks.aggregate(total=Sum("quantita"))["total"] or Decimal("0")
 
         # Corregge automaticamente solo lotti non ancora movimentati dopo la produzione.
@@ -39,11 +48,9 @@ def correggi_quantita_invasettate(apps, schema_editor):
             continue
         movement.quantita = new_quantity
         movement.save(update_fields=["quantita"])
-        first = stocks.first()
         if first:
             first.quantita = new_quantity
             first.save(update_fields=["quantita"])
-            stocks.exclude(pk=first.pk).update(quantita=0)
         session.quantita_finale_kg = new_quantity
         session.save(update_fields=["quantita_finale_kg"])
 

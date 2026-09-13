@@ -5,8 +5,9 @@ from django.apps import apps
 from django.conf import settings
 from django.core import serializers
 from django.core.exceptions import ValidationError
-from django.db import connection, transaction
+from django.db import connection, transaction, IntegrityError
 from django.utils import timezone
+from .backup_validation import validate_records
 
 FORMAT = "MIRA_BACKUP_V1"
 EXCLUDED = {"migrations.Migration"}
@@ -33,7 +34,7 @@ def read_backup(raw):
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise ValidationError("Il file non è un JSON MIRA valido.") from None
     expected = [m._meta.label for m in backup_models()]
-    if payload.get("format") != FORMAT or payload.get("models") != expected:
+    if not isinstance(payload, dict) or payload.get("format") != FORMAT or payload.get("models") != expected:
         raise ValidationError("Il backup non è compatibile con questa versione di MIRA.")
     if not isinstance(payload.get("records"), list) or not isinstance(payload.get("counts"), dict):
         raise ValidationError("Struttura del backup incompleta.")
@@ -47,13 +48,18 @@ def read_backup(raw):
         actual[model._meta.label] += 1
     if actual != payload["counts"]:
         raise ValidationError("Il numero dei record non corrisponde all’indice del backup.")
+    try:
+        validate_records(payload["records"])
+    except (ValueError, TypeError, KeyError) as exc:
+        raise ValidationError("Valori o riferimenti non validi nel backup.") from exc
     return payload
 
 
-@transaction.atomic
 def restore_backup(payload):
-    if connection.vendor != "mysql":
-        raise ValidationError("Il ripristino completo è disponibile soltanto sul database MySQL di MIRA.")
+    if connection.vendor not in {"mysql", "sqlite"}:
+        raise ValidationError("Ripristino disponibile su MySQL e SQLite.")
+    payload = read_backup(json.dumps(payload).encode("utf-8"))
+    objects = validate_records(payload["records"])
     models = backup_models()
     tables = []
     for model in models:
@@ -61,19 +67,26 @@ def restore_backup(payload):
         tables.append(model._meta.db_table)
     quote = connection.ops.quote_name
     try:
-        with connection.cursor() as cursor:
-            cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            for table in dict.fromkeys(tables):
-                cursor.execute("DELETE FROM " + quote(table))
-        for item in serializers.deserialize("json", json.dumps(payload["records"])):
-            item.save()
-        for model in models:
-            expected = payload["counts"].get(model._meta.label)
-            if expected is None or model.objects.count() != expected:
-                raise ValidationError("Verifica del ripristino fallita per " + model._meta.label)
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                if connection.vendor == "mysql":
+                    cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+                else:
+                    cursor.execute("PRAGMA defer_foreign_keys=ON")
+                for table in dict.fromkeys(tables):
+                    cursor.execute("DELETE FROM " + quote(table))
+            for item in objects:
+                item.save()
+            connection.check_constraints(table_names=list(dict.fromkeys(tables)))
+            for model in models:
+                if model.objects.count() != payload["counts"][model._meta.label]:
+                    raise ValidationError("Verifica del ripristino fallita per " + model._meta.label)
+    except IntegrityError as exc:
+        raise ValidationError("Ripristino annullato: vincoli del database non rispettati.") from exc
     finally:
-        with connection.cursor() as cursor:
-            cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+        if connection.vendor == "mysql":
+            with connection.cursor() as cursor:
+                cursor.execute("SET FOREIGN_KEY_CHECKS=1")
 
 
 @transaction.atomic
