@@ -64,13 +64,24 @@ class GenealogyService:
             works = set(InputLavorazione.objects.filter(lotto_id__in=frontier).values_list("lavorazione_id", flat=True))
             material_works.update(works)
             sessions = set(PrelievoSessioneSemplificata.objects.filter(
-                lotto_id__in=frontier, sessione__lotto_prodotto__isnull=False
+                lotto_id__in=frontier
             ).values_list("sessione_id", flat=True))
+            pending = set(sessions)
+            while pending:
+                # RoboQbo trasmette il materiale tramite la sessione, senza un Lotto proprio.
+                children = set(SessioneProduzioneSemplificata.objects.filter(
+                    lotto_origine_id__in=pending, lotto_origine__lotto_prodotto__isnull=True,
+                ).exclude(stato="ANNULLATA").values_list("pk", flat=True)) - sessions
+                sessions.update(children)
+                pending = children
             material_sessions.update(sessions)
             # Include le identità preparate anche prima del carico fisico.
             legacy = Lotto.objects.filter(lavorazione_origine_id__in=works).values_list("pk", flat=True)
-            simple = SessioneProduzioneSemplificata.objects.filter(pk__in=sessions).values_list("lotto_prodotto_id", flat=True)
-            return set(legacy) | set(simple)
+            simple = SessioneProduzioneSemplificata.objects.filter(pk__in=sessions).exclude(lotto_prodotto_id=None).values_list("lotto_prodotto_id", flat=True)
+            packaged = SessioneProduzioneSemplificata.objects.filter(
+                pk__in=sessions, tipo="CONFEZIONAMENTO", lotto_origine__lotto_prodotto__isnull=False,
+            ).values_list("lotto_origine__lotto_prodotto_id", flat=True)
+            return set(legacy) | set(simple) | set(packaged)
 
         lot_ids, omitted = walk_lots(root.pk, neighbors, max_lotti)
         lots = list(Lotto.objects.filter(pk__in=lot_ids).select_related("articolo__categoria", "fornitore").order_by("pk"))
@@ -85,7 +96,7 @@ class GenealogyService:
             lotto_prodotto_id__in=lot_ids
         ).values_list("pk", flat=True))
         sessions = list(SessioneProduzioneSemplificata.objects.filter(pk__in=material_sessions)
-            .select_related("ricetta__articolo", "lotto_prodotto").order_by("pk"))
+            .select_related("ricetta__articolo", "lotto_prodotto", "lotto_origine__lotto_prodotto").order_by("pk"))
 
         inputs = list(InputLavorazione.objects.filter(lavorazione_id__in=material_works, lotto_id__in=lot_ids).order_by("pk"))
         outputs = list(OutputLavorazione.objects.filter(lavorazione_id__in=material_works, lotto_id__in=lot_ids).order_by("pk"))
@@ -124,7 +135,8 @@ class GenealogyService:
         for movement in simple_output_movements:
             output_movements_by_session[movement.sessione_semplificata_id].append(movement.pk)
         for session in sessions:
-            if session.lotto_origine_id and session.lotto_origine_id in material_sessions:
+            if (session.lotto_origine_id and session.lotto_origine_id in material_sessions
+                    and (not session.lotto_origine.lotto_prodotto_id or session.tipo == "CONFEZIONAMENTO")):
                 edges.append({"tipo": "PASSAGGIO_PRODUTTIVO", "da": f"sessione:{session.lotto_origine_id}",
                     "a": f"sessione:{session.pk}", "quantita": None, "movimenti_ids": []})
             if session.lotto_prodotto_id in lot_ids:
@@ -138,6 +150,31 @@ class GenealogyService:
                     "a": f"lotto:{session.lotto_origine.lotto_prodotto_id}", "sessione_id": session.pk,
                     "quantita": str(session.quantita_finale_kg) if session.quantita_finale_kg is not None else None,
                     "movimenti_ids": [], "output_registrato": True})
+
+        # Una destinazione per lotto e documento: non sommare prodotti o unità differenti.
+        from vendite.models import RigaVendita
+        sales = {}
+        if direzione == "VALLE":
+            for row in RigaVendita.objects.filter(movimento__lotto_id__in=lot_ids).select_related(
+                "vendita__cliente", "movimento__lotto__articolo"
+            ).order_by("pk"):
+                movement, sale = row.movimento, row.vendita
+                key = (movement.lotto_id, sale.pk)
+                destination = sales.setdefault(key, {
+                    "nodo": f"vendita:{sale.pk}:lotto:{movement.lotto_id}",
+                    "vendita_id": sale.pk, "lotto_id": movement.lotto_id,
+                    "documento": sale.numero_documento, "cliente": sale.cliente.ragione_sociale,
+                    "cliente_id": sale.cliente_id, "data": iso(sale.data_documento),
+                    "quantita": Decimal("0"), "unita_misura": movement.lotto.articolo.unita_misura,
+                    "movimenti_ids": [],
+                })
+                destination["quantita"] += movement.quantita
+                destination["movimenti_ids"].append(movement.pk)
+            for destination in sales.values():
+                destination["quantita"] = str(destination["quantita"])
+                edges.append({"tipo": "VENDITA", "da": f"lotto:{destination['lotto_id']}",
+                    "a": destination["nodo"], "quantita": destination["quantita"],
+                    "movimenti_ids": destination["movimenti_ids"], "unita_misura": destination["unita_misura"]})
 
         from qualita.models import ControlloQualita, NonConformita
         controls = list(ControlloQualita.objects.filter(lavorazione_id__in=work_ids).select_related("controllo_richiesto__parametro_controllo").order_by("pk"))
@@ -193,6 +230,7 @@ class GenealogyService:
                 "lotto_prodotto_id": s.lotto_prodotto_id, "aperta_il": iso(s.aperta_il),
                 "chiusa_il": iso(s.chiusa_il)} for s in sessions],
             "legami_materiali": edges,
+            "vendite": list(sales.values()),
             "materiali_esterni": external_inputs,
             "ricevimenti": [{"id": r.pk, "lotto_id": r.lotto_id, "quantita": str(r.quantita_ricevuta),
                 "data": iso(r.data_ricevimento), "numero_ddt": r.numero_ddt, "numero_fattura": r.numero_fattura} for r in receipts],

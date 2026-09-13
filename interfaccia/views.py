@@ -206,25 +206,16 @@ def lot_detail(request, pk):
                         "tipo": "Storico", "url": "", "corrente": False}
             for w in graph["lavorazioni"]
         })
-        sales_by_document = {}
-        for movement in sales_movements:
-            sale = movement.riga_vendita.vendita
-            node_key = f"vendita:{sale.pk}"
+        for sale in graph["vendite"]:
+            node_key = sale["nodo"]
+            labels[node_key] = (f"Vendita {sale['documento']} · {sale['cliente']}", sale["unita_misura"])
             nodes[node_key] = {
-                "titolo": f"Vendita {sale.numero_documento}",
-                "sottotitolo": f"Cliente: {sale.cliente.ragione_sociale} · {sale.data_documento.strftime('%d/%m/%Y')}",
+                "titolo": f"Vendita {sale['documento']}",
+                "sottotitolo": f"Cliente: {sale['cliente']} · {date.fromisoformat(sale['data']).strftime('%d/%m/%Y')}",
                 "tipo": "Vendita",
-                "url": reverse("ui:sales"),
+                "url": reverse("ui:sales") if request.user.has_perm("auth.can_manage_sales") else "",
                 "corrente": False,
             }
-            destination = sales_by_document.setdefault(sale.pk, {
-                "tipo": "VENDITA", "da": f"lotto:{lot.pk}", "a": node_key,
-                "quantita": 0, "movimenti_ids": [], "unita_misura": lot.articolo.unita_misura,
-            })
-            destination["quantita"] += movement.quantita
-            destination["movimenti_ids"].append(movement.pk)
-        sale_edges = list(sales_by_document.values())
-        graph["legami_materiali"].extend(sale_edges)
         for edge in graph["legami_materiali"]:
             source, unit_in = labels.get(edge["da"], (edge["da"], ""))
             target, unit_out = labels.get(edge["a"], (edge["a"], ""))
