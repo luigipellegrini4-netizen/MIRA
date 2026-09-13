@@ -80,20 +80,44 @@ def recipes_import(request):
         if not required.issubset(reader.fieldnames or []): raise ValidationError("Intestazioni CSV non valide.")
         groups = {}
         for n, row in enumerate(reader, 2): groups.setdefault((row["prodotto"].strip(), row["versione"].strip()), []).append((n, row))
+        prepared = []
         for (product_code, version), rows in groups.items():
-            product = Articolo.objects.get(codice=product_code); first = rows[0][1]
+            if not product_code or not version:
+                raise ValidationError("Prodotto e versione sono obbligatori in ogni ricetta.")
+            product = Articolo.objects.get(codice=product_code, attivo=True); first = rows[0][1]
+            for number, row in rows[1:]:
+                if any(row[field].strip() != first[field].strip() for field in ("nome", "attiva", "note_ricetta")):
+                    raise ValidationError(f"Riga {number}: dati generali diversi per la stessa ricetta.")
+            active_value = first["attiva"].strip().upper()
+            if active_value not in {"SI", "SÌ", "1", "TRUE", "NO", "0", "FALSE"}:
+                raise ValidationError(f"{product_code} v{version}: il campo attiva deve essere SI oppure NO.")
+            ingredients = []
+            seen = set()
+            for number, row in rows:
+                if not row["quantita"].strip():
+                    continue
+                if row.get("categoria_ingrediente", "").strip():
+                    raise ValidationError(f"Riga {number}: sostituire la categoria ingrediente con un articolo preciso.")
+                code = row["ingrediente"].strip()
+                if not code:
+                    raise ValidationError(f"Riga {number}: indicare il codice dell’ingrediente.")
+                article = Articolo.objects.get(codice=code, attivo=True)
+                if article.pk in seen:
+                    raise ValidationError(f"Riga {number}: l’ingrediente {code} è ripetuto nella stessa ricetta.")
+                seen.add(article.pk)
+                ingredients.append((number, row, article))
+            if not ingredients:
+                raise ValidationError(f"{product_code} v{version}: inserire almeno un ingrediente per batch.")
+            prepared.append((product, version, first, ingredients))
+
+        for product, version, first, ingredients in prepared:
+            product_code = product.codice
             recipe = Ricetta.objects.filter(articolo=product, versione=version).first()
             if recipe and recipe.utilizzata: raise ValidationError(f"{product_code} v{version} è già utilizzata: importare con una nuova versione.")
             recipe = recipe or RecipeService.create(actor=request.user, articolo=product, nome=first["nome"], versione=version, note=first["note_ricetta"])
-            recipe.nome=first["nome"]; recipe.note=first["note_ricetta"]; recipe.attiva=first["attiva"].upper() in {"SI","SÌ","1","TRUE"}; recipe.save()
+            recipe.nome=first["nome"]; recipe.note=first["note_ricetta"]; recipe.attiva=first["attiva"].strip().upper() in {"SI","SÌ","1","TRUE"}; recipe.save()
             for line in list(recipe.righe.all()): RecipeService.remove_line(actor=request.user, riga=line)
-            for number, row in rows:
-                if not row["quantita"].strip(): continue
-                if row.get("categoria_ingrediente", "").strip():
-                    raise ValidationError(f"Riga {number}: sostituire la categoria ingrediente con un articolo preciso.")
-                if not row["ingrediente"].strip():
-                    raise ValidationError(f"Riga {number}: indicare il codice dell’ingrediente.")
-                article = Articolo.objects.get(codice=row["ingrediente"].strip())
+            for number, row, article in ingredients:
                 RecipeService.add_line(actor=request.user, ricetta=recipe, articolo=article, quantita=row["quantita"].replace(",","."), note=row["note_riga"])
         messages.success(request, f"Importate {len(groups)} ricette.")
     except (ValidationError, UnicodeDecodeError, csv.Error, Articolo.DoesNotExist) as exc:

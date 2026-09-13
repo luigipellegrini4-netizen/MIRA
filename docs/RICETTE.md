@@ -13,6 +13,11 @@ schema soltanto per leggere eventuali formule storiche; interfaccia, CSV e
 RecipeService non consentono di creare nuove righe generiche.
 Le quantità usano 18 cifre totali e 6 decimali, come il magazzino.
 
+Nel frontend le righe si aggiungono e rimuovono senza ricaricare la pagina.
+La scelta dell'articolo mostra la sua unità di misura; il riepilogo somma le
+quantità per unità separata. Il form e RecipeService impediscono ingredienti
+duplicati e una ricetta deve contenere almeno una riga.
+
 ## Permessi e Admin
 
 - AMMINISTRATORE e RESPONSABILE_PRODUZIONE possono creare e modificare ricette e righe.
@@ -70,6 +75,11 @@ articolo, quantità per batch e quantità totale. Non aggrega righe diverse:
 possono avere unità differenti. Non seleziona lotti, non
 prenota stock e non crea ancora lavorazioni. La pianificazione dei batch arriverà
 nei servizi produttivi successivi.
+
+L'import CSV valida prima l'intero file: richiede almeno un ingrediente preciso
+per ricetta, rifiuta duplicati e dati generali discordanti, quindi applica tutte
+le modifiche in una transazione. Le categorie storiche restano visibili
+nell'esportazione per permettere la conversione manuale.
 
 ## Verifica
 

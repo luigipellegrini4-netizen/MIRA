@@ -94,6 +94,12 @@ class RecipeTests(TestCase):
         with self.assertRaises(ValidationError):
             self.add_line(articolo=None, categoria_articolo=None)
 
+    def test_duplicate_ingredient_is_rejected_by_service(self):
+        self.add_line()
+        with self.assertRaisesMessage(ValidationError, "già presente"):
+            self.add_line()
+        self.assertEqual(self.recipe.righe.count(), 1)
+
     def test_line_quantity_must_be_positive(self):
         for amount in ("0", "-1"):
             with self.subTest(amount=amount), self.assertRaises(ValidationError):
@@ -231,6 +237,19 @@ class RecipeTests(TestCase):
         self.ingredient.save()
         self.assertNotIn(self.ingredient, RecipeLineForm().fields["articolo"].queryset)
 
+    def test_recipe_formset_requires_lines_and_rejects_duplicates(self):
+        from interfaccia.recipe_forms import RecipeLines
+        base = {"righe-TOTAL_FORMS": "1", "righe-INITIAL_FORMS": "0"}
+        empty = RecipeLines(base, instance=self.recipe, prefix="righe")
+        self.assertFalse(empty.is_valid())
+        self.assertIn("almeno un ingrediente", str(empty.non_form_errors()))
+        duplicate = RecipeLines({**base, "righe-TOTAL_FORMS": "2",
+            "righe-0-articolo": self.ingredient.pk, "righe-0-quantita": "1", "righe-0-note": "",
+            "righe-1-articolo": self.ingredient.pk, "righe-1-quantita": "2", "righe-1-note": ""},
+            instance=self.recipe, prefix="righe")
+        self.assertFalse(duplicate.is_valid())
+        self.assertIn("ripetuto", str(duplicate.errors))
+
     def test_editable_legacy_category_line_can_be_converted(self):
         from interfaccia.recipe_forms import RecipeLineForm
         legacy = RigaRicetta.objects.create(ricetta=self.recipe, categoria_articolo=self.category, quantita=1)
@@ -274,6 +293,21 @@ class RecipeTests(TestCase):
         content = response.content.decode("utf-8-sig")
         self.assertIn("categoria_ingrediente", content.splitlines()[0])
         self.assertIn(f";{self.category.codice};1.000000;", content)
+
+    def test_recipe_csv_rejects_duplicate_ingredients_before_writing(self):
+        line = self.add_line()
+        self.client.force_login(self.planner)
+        header = "prodotto;nome;versione;attiva;note_ricetta;ingrediente;categoria_ingrediente;quantita;note_riga\n"
+        rows = (
+            f"{self.product.codice};Confettura;1;SI;;{self.ingredient.codice};;3;prima\n"
+            f"{self.product.codice};Confettura;1;SI;;{self.ingredient.codice};;4;seconda\n"
+        )
+        response = self.client.post(reverse("ui:recipes_import"), {
+            "file": SimpleUploadedFile("ricette.csv", (header + rows).encode("utf-8"), content_type="text/csv")
+        }, follow=True)
+        self.assertContains(response, "è ripetuto")
+        line.refresh_from_db()
+        self.assertEqual(line.quantita, Decimal("2.5"))
 
     def test_read_permissions_are_more_permissive_than_write(self):
         for user in (self.operator, self.warehouse):

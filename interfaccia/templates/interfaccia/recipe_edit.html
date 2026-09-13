@@ -18,17 +18,38 @@
 </section>
 {% endif %}
 <section class="panel form-panel space-top">
-  <form method="post" data-submit-once>{% csrf_token %}{{ form.non_field_errors }}
+  <form method="post" data-submit-once {% if lines %}data-recipe-editor{% endif %}>{% csrf_token %}{{ form.non_field_errors }}
     <div class="form-grid">
       {% for field in form %}<div class="field {% if field.name == 'note' %}wide{% endif %}"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
     </div>
     {% if lines %}
       <h2 class="space-top">Ingredienti per batch</h2>
-      <p class="muted">Ogni riga deve indicare un articolo preciso. L’unità di misura è quella dell’articolo selezionato.</p>
+      <p class="muted">Aggiungi gli articoli e indica la quantità necessaria per produrre un singolo batch.</p>
       {{ lines.management_form }}{{ lines.non_form_errors }}
-      {% for line in lines %}<div class="form-grid ingredient-panel">
-        {% for field in line %}<div class="field"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
-      </div>{% endfor %}
+      <div class="recipe-lines" data-recipe-lines>
+        {% for line in lines %}
+        <div class="recipe-line" data-recipe-line>
+          {% for hidden in line.hidden_fields %}{{ hidden }}{% endfor %}
+          <div class="field"><label for="{{ line.articolo.id_for_label }}">Ingrediente</label>{{ line.articolo }}{{ line.articolo.errors }}<span class="recipe-line-unit" data-recipe-unit>—</span></div>
+          <div class="field"><label for="{{ line.quantita.id_for_label }}">Quantità per batch</label>{{ line.quantita }}{{ line.quantita.errors }}</div>
+          <div class="field recipe-notes"><label for="{{ line.note.id_for_label }}">Note</label>{{ line.note }}{{ line.note.errors }}</div>
+          <div hidden>{{ line.DELETE }}</div><button class="button secondary danger recipe-line-remove" type="button" data-remove-recipe-line>Rimuovi</button>
+          {{ line.non_field_errors }}
+        </div>
+        {% endfor %}
+        <div class="recipe-empty" data-recipe-empty hidden>Nessun ingrediente inserito.</div>
+      </div>
+      <template data-recipe-template>
+        <div class="recipe-line" data-recipe-line>
+          {% with line=lines.empty_form %}{% for hidden in line.hidden_fields %}{{ hidden }}{% endfor %}
+          <div class="field"><label for="{{ line.articolo.id_for_label }}">Ingrediente</label>{{ line.articolo }}{{ line.articolo.errors }}<span class="recipe-line-unit" data-recipe-unit>—</span></div>
+          <div class="field"><label for="{{ line.quantita.id_for_label }}">Quantità per batch</label>{{ line.quantita }}{{ line.quantita.errors }}</div>
+          <div class="field recipe-notes"><label for="{{ line.note.id_for_label }}">Note</label>{{ line.note }}{{ line.note.errors }}</div>
+          <div hidden>{{ line.DELETE }}</div><button class="button secondary danger recipe-line-remove" type="button" data-remove-recipe-line>Rimuovi</button>{% endwith %}
+        </div>
+      </template>
+      <div class="recipe-totals" data-recipe-totals></div>
+      <button class="button secondary" type="button" data-add-recipe-line>+ Aggiungi ingrediente</button>
     {% endif %}
     {% if readonly_lines %}
       <h2 class="space-top">Ingredienti per batch</h2>

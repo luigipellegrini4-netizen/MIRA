@@ -33,9 +33,12 @@ class RecipeService:
             raise ValidationError("Ogni ingrediente della ricetta deve indicare un articolo preciso.")
         recipe = Ricetta.objects.select_for_update().get(pk=persisted_id(ricetta, "Ricetta"))
         recipe.ensure_formula_editable()
+        article_id = persisted_id(articolo, "Articolo")
+        if recipe.righe.filter(articolo_id=article_id).exists():
+            raise ValidationError("Questo ingrediente è già presente nella ricetta.")
         return RigaRicetta.objects.create(
             ricetta=recipe, quantita=quantity(quantita), note=note,
-            articolo_id=persisted_id(articolo, "Articolo") if articolo is not None else None,
+            articolo_id=article_id,
             categoria_articolo_id=None,
         )
 
