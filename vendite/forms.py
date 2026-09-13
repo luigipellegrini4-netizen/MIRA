@@ -3,7 +3,7 @@ from django.forms import BaseFormSet, formset_factory
 from django.db.models import Min
 
 from magazzino.models import Giacenza
-from .models import Cliente
+from .models import Cliente, Vendita
 
 
 class ClienteForm(forms.ModelForm):
@@ -17,6 +17,12 @@ class VenditaForm(forms.Form):
     data_documento = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="Data documento")
     cliente = forms.ModelChoiceField(queryset=Cliente.objects.filter(attivo=True))
     note = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False)
+
+    def clean_numero_documento(self):
+        numero = self.cleaned_data["numero_documento"]
+        if Vendita.objects.filter(numero_documento=numero).exists():
+            raise forms.ValidationError("Esiste già una vendita con questo numero documento.")
+        return numero
 
 
 class SalesStockSelect(forms.Select):

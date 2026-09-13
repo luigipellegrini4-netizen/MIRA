@@ -94,8 +94,10 @@ class OpenFillingForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["lotto_origine"].queryset = SessioneProduzioneSemplificata.objects.filter(
-            tipo="ROBOQBO", stato__in=["APERTA", "CHIUSA"], sessioni_invasettamento__isnull=True,
-        ).select_related("ricetta__articolo")
+            tipo="ROBOQBO", stato__in=["APERTA", "CHIUSA"],
+        ).exclude(pk__in=SessioneProduzioneSemplificata.objects.exclude(
+            stato="ANNULLATA"
+        ).filter(lotto_origine__isnull=False).values("lotto_origine_id")).select_related("ricetta__articolo")
 
 
 class OpenLabelingForm(forms.Form):

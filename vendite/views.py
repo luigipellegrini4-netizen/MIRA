@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -56,6 +56,10 @@ def sale_new(request):
                         RigaVendita.objects.create(vendita=sale, movimento=movement)
             except ValidationError as exc:
                 form.add_error(None, " · ".join(exc.messages))
+            except IntegrityError:
+                if not Vendita.objects.filter(numero_documento=form.cleaned_data["numero_documento"]).exists():
+                    raise
+                form.add_error("numero_documento", "Esiste già una vendita con questo numero documento.")
             else:
                 messages.success(request, "Vendita registrata e giacenze scaricate."); return redirect("ui:sales")
     return render(request, "vendite/sale_form.html", {"section": "vendite", "form": form, "lines": lines})

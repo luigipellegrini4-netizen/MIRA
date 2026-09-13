@@ -153,7 +153,7 @@ class ProduzioneSemplificataService:
             raise ValidationError("Selezionare un lotto RoboQbo.")
         if source.stato not in {"APERTA", "CHIUSA"}:
             raise ValidationError("Il lotto RoboQbo deve essere già stato avviato.")
-        if source.sessioni_invasettamento.exists():
+        if source.sessioni_invasettamento.exclude(stato="ANNULLATA").exists():
             raise ValidationError("Il lotto RoboQbo è già stato scelto per un invasettamento.")
         if not igienizzazione_confermata:
             raise ValidationError("Confermare la pulizia e igienizzazione di vasetti e capsule.")
@@ -248,12 +248,25 @@ class ProduzioneSemplificataService:
         saved = []
         for row in rows:
             number = row["numero"]
+            control = existing.get(number)
+            def timestamp(field):
+                value = row.get(field)
+                if not value:
+                    return None
+                previous = getattr(control, field, None)
+                reference = previous or (control.inizio or control.fine or control.registrato_il if control else None)
+                date = timezone.localtime(reference).date() if reference else day
+                if previous and timezone.localtime(previous).time() == value:
+                    return previous
+                return timezone.make_aware(datetime.combine(date, value))
             values = {
-                "inizio": timezone.make_aware(datetime.combine(day, row["inizio"])) if row.get("inizio") else None,
-                "fine": timezone.make_aware(datetime.combine(day, row["fine"])) if row.get("fine") else None,
+                "inizio": timestamp("inizio"),
+                "fine": timestamp("fine"),
                 "esito_tracciato_termico": row.get("esito_tracciato_termico", ""),
             }
-            control = existing.get(number)
+            if control is not None and all(getattr(control, field) == value for field, value in values.items()):
+                saved.append(control)
+                continue
             if control is None:
                 if not any(values.values()):
                     continue
