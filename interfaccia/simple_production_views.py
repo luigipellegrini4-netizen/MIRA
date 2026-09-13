@@ -2,8 +2,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Sum
+from django.db import transaction, connection
+from django.db.models import Sum, F
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
@@ -157,11 +157,22 @@ def batch_controls(request, pk):
     return redirect("ui:simple_session", pk=obj.pk)
 
 
+def _picking_sessions(request, pk):
+    sessions = SessioneProduzioneSemplificata.objects.all()
+    if request.method == "POST":
+        # SQLite non dispone di lock di riga: acquisire il lock di scrittura
+        # prima di leggere stato e conferme evita due letture dello stesso stato iniziale.
+        if connection.vendor == "sqlite":
+            sessions.filter(pk=pk).update(note=F("note"))
+        return sessions.select_for_update()
+    return sessions
+
+
 @permitted("auth.can_record_production_consumption")
 @require_http_methods(["GET", "POST"])
 @transaction.atomic
 def picking(request, pk):
-    obj = get_object_or_404(SessioneProduzioneSemplificata, pk=pk, tipo__in=["ROBOQBO", "SEMILAVORATO"], stato="APERTA")
+    obj = get_object_or_404(_picking_sessions(request, pk), pk=pk, tipo__in=["ROBOQBO", "SEMILAVORATO"], stato="APERTA")
     if obj.tipo in {"SEMILAVORATO", "ROBOQBO"}:
         requirements = []
         initial = []
@@ -220,6 +231,8 @@ def picking(request, pk):
                                 row.full_clean()
                                 row.save()
                                 remaining -= used
+                            if remaining > 0:
+                                raise ValidationError("Disponibilità cambiata: aggiornare la selezione dei lotti.")
                 except ValidationError as exc:
                     error = " · ".join(exc.messages)
                 else:
@@ -244,7 +257,7 @@ def picking(request, pk):
 @require_http_methods(["GET", "POST"])
 @transaction.atomic
 def additional_picking(request, pk):
-    obj = get_object_or_404(SessioneProduzioneSemplificata, pk=pk, stato="APERTA")
+    obj = get_object_or_404(_picking_sessions(request, pk), pk=pk, stato="APERTA")
     if obj.tipo in {"SEMILAVORATO", "ROBOQBO"} and not obj.prelievo_ricetta_registrato:
         messages.warning(request, "Confermare prima il prelievo proposto dalla ricetta.")
         return redirect("ui:simple_picking", pk=obj.pk)

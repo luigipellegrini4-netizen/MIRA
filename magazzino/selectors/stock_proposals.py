@@ -41,6 +41,22 @@ class StockProposal:
         }
 
 
+def order_stocks(stocks, article):
+    """Stesso ordine di rotazione per previsione, selezione e consumo."""
+    receipts = RicevimentoLotto.objects.filter(lotto_id=OuterRef("lotto_id")).order_by("data_ricevimento", "pk")
+    entries = Movimento.objects.filter(lotto_id=OuterRef("lotto_id"), ubicazione_origine__isnull=True).order_by("data_ora", "pk")
+    stocks = stocks.annotate(primo_ingresso=Coalesce(
+        Subquery(receipts.values("data_ricevimento")[:1]),
+        Subquery(entries.values("data_ora")[:1]), output_field=DateTimeField(),
+    ))
+    stable = [F("primo_ingresso").asc(nulls_last=True), "lotto_id", "pk"]
+    if article.criterio_rotazione == Articolo.CriterioRotazione.FEFO:
+        return stocks.order_by(F("lotto__data_scadenza").asc(nulls_last=True), *stable)
+    if article.criterio_rotazione == Articolo.CriterioRotazione.FIFO:
+        return stocks.order_by(*stable)
+    return stocks.order_by("lotto_id", "pk")
+
+
 class StockProposalService:
     @staticmethod
     def propose(*, actor, articolo, quantita, ubicazioni=None):
@@ -53,23 +69,11 @@ class StockProposalService:
             raise ValidationError("Articolo inesistente.") from None
         # Una proposta non prenota stock, non registra movimenti e non impone
         # alcun lotto al successivo servizio di consumo.
-        receipts = RicevimentoLotto.objects.filter(lotto_id=OuterRef("lotto_id")).order_by("data_ricevimento", "pk")
-        entries = Movimento.objects.filter(lotto_id=OuterRef("lotto_id"), ubicazione_origine__isnull=True).order_by("data_ora", "pk")
         stocks = Giacenza.objects.filter(lotto__articolo=article, quantita__gt=0, ubicazione__attiva=True).select_related("lotto")
         if ubicazioni is not None:
             ids = [persisted_id(u, "Ubicazione") for u in ubicazioni]
             stocks = stocks.filter(ubicazione_id__in=ids)
-        stocks = stocks.annotate(primo_ingresso=Coalesce(
-            Subquery(receipts.values("data_ricevimento")[:1]),
-            Subquery(entries.values("data_ora")[:1]), output_field=DateTimeField(),
-        ))
-        stable = [F("primo_ingresso").asc(nulls_last=True), "lotto_id", "pk"]
-        if article.criterio_rotazione == Articolo.CriterioRotazione.FEFO:
-            stocks = stocks.order_by(F("lotto__data_scadenza").asc(nulls_last=True), *stable)
-        elif article.criterio_rotazione == Articolo.CriterioRotazione.FIFO:
-            stocks = stocks.order_by(*stable)
-        else:
-            stocks = stocks.order_by("lotto_id", "pk")
+        stocks = order_stocks(stocks, article)
         remaining, lines = amount, []
         from qualita.nc_selectors import quarantine_balances, blocked_quantity
         held_by_lot = {}

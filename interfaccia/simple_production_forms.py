@@ -164,7 +164,7 @@ class SemiFinishedPickingLineForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         article_id = self.data.get(self.add_prefix("articolo")) if self.is_bound else self.initial.get("articolo")
-        stocks = Giacenza.objects.filter(quantita__gt=0)
+        stocks = Giacenza.objects.filter(quantita__gt=0, ubicazione__attiva=True)
         if article_id:
             stocks = stocks.filter(lotto__articolo_id=article_id)
         else:
@@ -174,6 +174,13 @@ class SemiFinishedPickingLineForm(forms.Form):
         ).select_related(
             "lotto__articolo", "ubicazione"
         ).order_by("lotto__data_scadenza", "lotto__codice_lotto", "pk")
+        from magazzino.selectors.stock_proposals import order_stocks
+        try:
+            article = Articolo.objects.filter(pk=article_id).first() if article_id else None
+        except (ValueError, TypeError):
+            article = None
+        if article:
+            self.fields["giacenza"].queryset = order_stocks(self.fields["giacenza"].queryset, article)
         self.fields["giacenza"].label_from_instance = lambda g: (
             f"{g.lotto.articolo.codice} — {g.lotto.articolo.descrizione} · lotto {g.lotto.codice_lotto} · "
             f"{g.ubicazione.codice}/{g.scaffale or '-'}-{g.piano or '-'} · disponibili {g.quantita} kg · "
