@@ -8,7 +8,7 @@ from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -169,6 +169,13 @@ def movements(request):
 @permitted("magazzino.view_lotto")
 def lot_detail(request, pk):
     lot = get_object_or_404(Lotto.objects.select_related("articolo", "fornitore"), pk=pk)
+    initial_quantity = lot.movimenti.filter(
+        tipo__in=[Movimento.Tipo.CARICO, Movimento.Tipo.PRODUZIONE]
+    ).aggregate(total=Sum("quantita"))["total"] or 0
+    outgoing_quantity = lot.movimenti.filter(
+        tipo__in=[Movimento.Tipo.CONSUMO, Movimento.Tipo.VENDITA,
+                  Movimento.Tipo.SCARTO, Movimento.Tipo.SCARICO]
+    ).aggregate(total=Sum("quantita"))["total"] or 0
     sales_movements = list(lot.movimenti.filter(tipo="VENDITA").select_related(
         "riga_vendita__vendita__cliente", "riga_vendita__vendita__registrata_da",
         "ubicazione_origine",
@@ -199,7 +206,7 @@ def lot_detail(request, pk):
                         "tipo": "Storico", "url": "", "corrente": False}
             for w in graph["lavorazioni"]
         })
-        sale_edges = []
+        sales_by_document = {}
         for movement in sales_movements:
             sale = movement.riga_vendita.vendita
             node_key = f"vendita:{sale.pk}"
@@ -210,11 +217,13 @@ def lot_detail(request, pk):
                 "url": reverse("ui:sales"),
                 "corrente": False,
             }
-            sale_edges.append({
+            destination = sales_by_document.setdefault(sale.pk, {
                 "tipo": "VENDITA", "da": f"lotto:{lot.pk}", "a": node_key,
-                "quantita": str(movement.quantita), "movimenti_ids": [movement.pk],
-                "unita_misura": lot.articolo.unita_misura,
+                "quantita": 0, "movimenti_ids": [], "unita_misura": lot.articolo.unita_misura,
             })
+            destination["quantita"] += movement.quantita
+            destination["movimenti_ids"].append(movement.pk)
+        sale_edges = list(sales_by_document.values())
         graph["legami_materiali"].extend(sale_edges)
         for edge in graph["legami_materiali"]:
             source, unit_in = labels.get(edge["da"], (edge["da"], ""))
@@ -254,10 +263,13 @@ def lot_detail(request, pk):
             levels.append(level)
             frontier = next_frontier
         graph["trace_levels"] = list(reversed(levels)) if direction == "MONTE" else levels
-    stocks = Giacenza.objects.filter(lotto=lot).select_related("ubicazione") if request.user.has_perm("magazzino.view_giacenza") else []
+    stocks = list(Giacenza.objects.filter(lotto=lot).select_related("ubicazione")) if request.user.has_perm("magazzino.view_giacenza") else []
+    current_quantity = sum((stock.quantita for stock in stocks), 0)
     return render(request, "interfaccia/lot.html", {
         "section": "tracciabilita", "lot": lot, "stocks": stocks, "graph": graph,
         "direction": direction, "sales_movements": sales_movements,
+        "initial_quantity": initial_quantity, "current_quantity": current_quantity,
+        "outgoing_quantity": outgoing_quantity,
     })
 
 

@@ -5,7 +5,8 @@
   <div><p class="eyebrow">TRACCIABILITÀ / LOTTO #{{ lot.pk }}</p><h1>{{ lot.codice_lotto }}</h1><p class="muted">{{ lot.articolo.descrizione }} · {{ lot.articolo.unita_misura }}</p></div>
   <div class="actions"><span class="pill neutral">{{ lot.get_tipo_display }}</span>{% if perms.auth.can_open_nc %}<a class="button secondary" href="{% url 'ui:operation' 'nc_apri' %}?lotto={{ lot.pk }}">Apri NC</a>{% endif %}</div>
 </div>
-<div class="workflow">
+<div class="workflow lot-overview">
+  <div><small>QUANTITÀ INIZIALE</small><strong>{{ initial_quantity|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
   <div><small>FORNITORE</small><strong>{{ lot.fornitore.ragione_sociale|default:'Produzione interna' }}</strong></div>
   <div><small>SCADENZA</small><strong>{{ lot.data_scadenza|date:'d/m/Y'|default:'Non indicata' }}</strong></div>
   <div><small>CRITERIO</small><strong>{{ lot.articolo.criterio_rotazione }}</strong></div>
@@ -36,6 +37,11 @@
       <a class="{% if direction == 'VALLE' %}selected{% endif %}" href="?direzione=VALLE"><span>→</span><strong>A valle</strong><small>Utilizzi</small></a>
     </nav>
   </section>
+  <div class="trace-summary" aria-label="Riepilogo quantità del lotto">
+    <div><small>Quantità iniziale</small><strong>{{ initial_quantity|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
+    <div><small>Giacenza attuale</small><strong>{{ current_quantity|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
+    <div><small>Uscite registrate</small><strong>{{ outgoing_quantity|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></div>
+  </div>
   {% if graph.troncato %}<div class="notice warning">Il percorso supera il limite di visualizzazione. Apri uno dei lotti per proseguire.</div>{% endif %}
 
   {% if direction == 'MONTE' %}
@@ -81,7 +87,7 @@
           </span>
           <div class="trace-level-nodes">
             {% for node in level %}
-              <article class="trace-card {% if node.corrente %}current{% elif node.tipo == 'Produzione' %}process{% endif %}">
+              <article class="trace-card {% if node.corrente %}current{% elif node.tipo == 'Produzione' %}process{% elif node.tipo == 'Vendita' %}sale{% endif %}">
                 <span class="trace-kind">{% if node.corrente %}Lotto selezionato{% else %}{{ node.tipo }}{% endif %}</span>
                 {% if node.url %}<a href="{{ node.url }}">{{ node.titolo }}</a>{% else %}<strong>{{ node.titolo }}</strong>{% endif %}
                 <small>{{ node.sottotitolo }}</small>

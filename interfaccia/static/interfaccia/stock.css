@@ -113,6 +113,10 @@
     color: var(--white);
 }
 
+.workflow.lot-overview {
+    grid-template-columns: repeat(4, 1fr);
+}
+
 .trace-header h2 {
     margin-bottom: 5px;
     font-size: 23px;
@@ -164,6 +168,35 @@
 .trace-switch strong,
 .trace-switch small {
     line-height: 1.25;
+}
+
+.trace-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    overflow: hidden;
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--line);
+}
+
+.trace-summary > div {
+    padding: 17px 20px;
+    background: var(--white);
+}
+
+.trace-summary small {
+    margin-bottom: 5px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+}
+
+.trace-summary strong {
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
 }
 
 .trace-switch small {
@@ -234,6 +267,15 @@
 .trace-card.process {
     border-color: #9eb5a4;
     background: #edf3ec;
+}
+
+.trace-card.sale {
+    border-color: #d7bd82;
+    background: #fff8e8;
+}
+
+.trace-card.sale .trace-kind {
+    color: #855716;
 }
 
 .trace-map {
@@ -372,6 +414,10 @@
 }
 
 @media (max-width: 820px) {
+    .workflow.lot-overview {
+        grid-template-columns: 1fr;
+    }
+
     .trace-header {
         align-items: stretch;
         flex-direction: column;
@@ -379,6 +425,10 @@
 
     .trace-switch {
         min-width: 0;
+    }
+
+    .trace-summary {
+        grid-template-columns: 1fr;
     }
 
     .trace-step {
