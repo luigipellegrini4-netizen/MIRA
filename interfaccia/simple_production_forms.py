@@ -387,7 +387,6 @@ class SummaryForm(forms.Form):
     vasetti_quarantena = forms.IntegerField(min_value=0)
     capsule_difettose = forms.IntegerField(min_value=0)
     peso_netto_g = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6)
-    data_scadenza = forms.DateField(label="Data di scadenza", widget=forms.DateInput(attrs={"type": "date"}))
     destinazione = forms.ModelChoiceField(queryset=Ubicazione.objects.none(), label="Ubicazione lotto invasettato")
     scaffale = forms.CharField(required=False, max_length=30)
     piano = forms.CharField(required=False, max_length=30)
@@ -395,7 +394,6 @@ class SummaryForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["destinazione"].queryset = Ubicazione.objects.filter(attiva=True)
-        self.fields["data_scadenza"].widget.attrs["min"] = timezone.localdate().isoformat()
         moca_ids = article_ids_for_category("MOCA")
         stocks = Giacenza.objects.filter(
             quantita__gt=0, ubicazione__attiva=True, lotto__articolo_id__in=moca_ids,
@@ -429,13 +427,6 @@ class SummaryForm(forms.Form):
             if stocks and sum(stock.quantita for stock in stocks) < required:
                 self.add_error(f"{prefix}_giacenza", f"I lotti selezionati non coprono la quantità richiesta: {required} PZ.")
         return data
-
-    def clean_data_scadenza(self):
-        value = self.cleaned_data["data_scadenza"]
-        if value < timezone.localdate():
-            raise forms.ValidationError("La scadenza non può precedere la data di produzione.")
-        return value
-
 
 class SemiFinishedSummaryForm(forms.Form):
     quantita_finale_kg = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità finale ottenuta (kg)")

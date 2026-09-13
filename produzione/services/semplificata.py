@@ -409,7 +409,7 @@ class ProduzioneSemplificataService:
     @transaction.atomic
     def chiudi_invasettamento(*, actor, sessione, vasetti_buoni, vasetti_scartati,
                               vasetti_quarantena, capsule_difettose, peso_netto_g,
-                              vasetti_giacenza, capsule_giacenza, data_scadenza, destinazione):
+                              vasetti_giacenza, capsule_giacenza, destinazione):
         from magazzino.models import Lotto, Movimento
         from magazzino.services import MovementService
         require_permission(actor, "can_execute_production")
@@ -434,7 +434,7 @@ class ProduzioneSemplificataService:
         lot = Lotto.objects.create(
             articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
             tipo=Lotto.Tipo.PRODUZIONE, stato_prodotto=Lotto.StatoProdotto.INVASETTATO,
-            data_produzione=timezone.localdate(), data_scadenza=data_scadenza,
+            data_produzione=timezone.localdate(), data_scadenza=None,
             note=f"Prodotto dall'invasettamento {current.lotto_codice}",
         )
         quantita_prodotta = (
