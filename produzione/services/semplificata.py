@@ -437,14 +437,19 @@ class ProduzioneSemplificataService:
             data_produzione=timezone.localdate(), data_scadenza=data_scadenza,
             note=f"Prodotto dall'invasettamento {current.lotto_codice}",
         )
-        if summary.quantita_conforme_kg > 0:
+        quantita_prodotta = (
+            Decimal(summary.vasetti_buoni)
+            if current.ricetta.articolo.unita_misura == "PZ"
+            else summary.quantita_conforme_kg
+        )
+        if quantita_prodotta > 0:
             MovementService.register(
                 actor=actor, lotto=lot, tipo=Movimento.Tipo.PRODUZIONE,
-                quantita=summary.quantita_conforme_kg, destinazione=destinazione,
+                quantita=quantita_prodotta, destinazione=destinazione,
                 note=f"Chiusura invasettamento {current.lotto_codice}", sessione_semplificata=current,
             )
         current.lotto_prodotto = lot
-        current.quantita_finale_kg = summary.quantita_finale_kg
+        current.quantita_finale_kg = quantita_prodotta
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         _record(current)
         return summary
