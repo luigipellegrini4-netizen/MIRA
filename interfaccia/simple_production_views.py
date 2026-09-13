@@ -28,22 +28,26 @@ def sessions(request):
         "postazione__risorsa", "ricetta__articolo", "lotto_origine"
     ))
     definitions = [
-        ("SEMILAVORATO", "Semilavorati", "SLV", "Prelievo materie prime e produzione del semilavorato.", "ui:simple_open_semifinished"),
-        ("ROBOQBO", "RoboQbo", "RBQB", "Batch, controlli termici, tank, °Brix e pH.", "ui:simple_open_roboqbo"),
-        ("INVASETTAMENTO", "Invasettamento", "INV", "Carrelli, pastorizzazione, shock termico e vuoto.", "ui:simple_open_filling"),
-        ("ETICHETTATURA", "Etichettatura", "PF", "Dal lotto invasettato al prodotto finito etichettato.", "ui:simple_open_labeling"),
-        ("CONFEZIONAMENTO", "Confezionamento", "BOX", "Confezionamento del prodotto finito senza cambiare lotto.", "ui:simple_open_packaging"),
+        (1, "SEMILAVORATO", "Semilavorati", "SLV", "Prelievo materie prime e produzione del semilavorato.", "ui:simple_open_semifinished"),
+        (2, "ROBOQBO", "RoboQbo", "RBQB", "Batch, controlli termici, tank, °Brix e pH.", "ui:simple_open_roboqbo"),
+        (3, "INVASETTAMENTO", "Invasettamento", "INV", "Carrelli, pastorizzazione, shock termico e vuoto.", "ui:simple_open_filling"),
+        (4, "ETICHETTATURA", "Etichettatura", "PF", "Dal lotto invasettato al prodotto finito etichettato.", "ui:simple_open_labeling"),
+        (5, "CONFEZIONAMENTO", "Confezionamento", "BOX", "Confezionamento del prodotto finito senza cambiare lotto.", "ui:simple_open_packaging"),
     ]
     groups = []
-    for code, name, marker, description, new_url in definitions:
+    for phase, code, name, marker, description, new_url in definitions:
         group_rows = [row for row in rows if row.tipo == code]
         groups.append({
-            "code": code, "name": name, "marker": marker, "description": description,
+            "phase": phase, "code": code, "name": name, "marker": marker, "description": description,
             "new_url": new_url, "sessions": group_rows, "count": len(group_rows),
             "active_count": sum(row.stato in {"PIANIFICATA", "APERTA"} for row in group_rows),
+            "closed_count": sum(row.stato == "CHIUSA" for row in group_rows),
         })
     return render(request, "interfaccia/semplice/sessions.html", {
         "section": "produzione-semplice", "production_groups": groups,
+        "production_total": len(rows),
+        "production_active": sum(row.stato in {"PIANIFICATA", "APERTA"} for row in rows),
+        "production_closed": sum(row.stato == "CHIUSA" for row in rows),
     })
 
 

@@ -2,43 +2,53 @@
 {% block title %}Produzione · MIRA{% endblock %}
 {% block content %}
 <div class="page-head production-heading">
-  <div><p class="eyebrow">PRODUZIONE</p><h1>Produzione</h1><p class="muted">Apri un modulo per iniziare una nuova produzione o consulta lo storico.</p></div>
+  <div><p class="eyebrow">PRODUZIONE</p><h1>Produzione</h1><p class="muted">Segui il processo, apri una lavorazione e consulta lo storico.</p></div>
 </div>
 
-<nav class="production-launchers" aria-label="Avvio produzione">
+<section class="production-overview" aria-label="Riepilogo produzione">
+  <div class="production-overview-copy"><span class="production-live-dot"></span><span><small>ATTIVITÀ CORRENTE</small><strong>{{ production_active }} lavorazioni da completare</strong></span></div>
+  <div class="production-kpis">
+    <span><small>Totali</small><strong>{{ production_total }}</strong></span>
+    <span><small>Chiuse</small><strong>{{ production_closed }}</strong></span>
+  </div>
+</section>
+
+<div class="production-section-head"><div><p class="eyebrow">FLUSSO OPERATIVO</p><h2>Avvia una lavorazione</h2></div><small>Le fasi seguono l’ordine normale del prodotto.</small></div>
+<nav class="production-launchers" aria-label="Fasi della produzione">
   {% for group in production_groups %}
-    <a class="production-launcher" href="{% url group.new_url %}">
-      <span class="production-marker">{{ group.marker }}</span>
-      <span><strong>Nuova produzione<br>{{ group.name }}</strong><small>{{ group.description }}</small></span>
-      <span class="production-arrow" aria-hidden="true">＋</span>
-    </a>
+    <article class="production-launcher" data-production-type="{{ group.code }}">
+      <div class="production-launcher-top"><span class="production-phase">0{{ group.phase }}</span><span class="production-marker">{{ group.marker }}</span></div>
+      <div class="production-launcher-copy"><strong>{{ group.name }}</strong><small>{{ group.description }}</small></div>
+      <div class="production-launcher-foot"><span>{% if group.active_count %}<b>{{ group.active_count }}</b> attive{% else %}Nessuna attiva{% endif %}</span>{% if perms.auth.can_execute_production %}<a href="{% url group.new_url %}">Nuova <span aria-hidden="true">＋</span></a>{% endif %}</div>
+    </article>
   {% endfor %}
 </nav>
 
+<div class="production-section-head archive-head"><div><p class="eyebrow">ARCHIVIO</p><h2>Lavorazioni per fase</h2></div><small>Apri una sezione per vedere le produzioni registrate.</small></div>
 <div class="production-groups">
 {% for group in production_groups %}
-  <details class="panel production-group"{% if group.active_count %} open{% endif %}>
+  <details class="panel production-group" data-production-type="{{ group.code }}"{% if group.active_count %} open{% endif %}>
     <summary class="production-summary">
-      <span class="production-summary-title"><span class="production-marker small">{{ group.marker }}</span><span><strong>{{ group.name }}</strong><small>{{ group.description }}</small></span></span>
+      <span class="production-summary-title"><span class="production-phase small">0{{ group.phase }}</span><span class="production-marker small">{{ group.marker }}</span><span><strong>{{ group.name }}</strong><small>{{ group.description }}</small></span></span>
       <span class="production-summary-meta">
         {% if group.active_count %}<span class="pill IN_CORSO">{{ group.active_count }} attive</span>{% endif %}
-        <span class="counter">{{ group.count }} totali</span><span class="summary-chevron" aria-hidden="true">⌄</span>
+        <span class="counter">{{ group.closed_count }} chiuse · {{ group.count }} totali</span><span class="summary-chevron" aria-hidden="true">⌄</span>
       </span>
     </summary>
     <div class="production-group-body">
-      <div class="production-group-actions"><a class="button secondary" href="{% url group.new_url %}">+ Nuova {{ group.name|lower }}</a></div>
+      {% if perms.auth.can_execute_production %}<div class="production-group-actions"><a class="button secondary" href="{% url group.new_url %}">+ Nuova {{ group.name|lower }}</a></div>{% endif %}
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Lotto</th><th>Articolo</th><th>Origine</th><th>Stato</th><th>Apertura</th><th></th></tr></thead>
+          <thead><tr><th>Produzione</th><th>Articolo</th><th>Origine</th><th>Stato</th><th>Avviata</th><th></th></tr></thead>
           <tbody>
             {% for s in group.sessions %}
-              <tr>
-                <td><strong>{{ s.lotto_codice }}</strong></td>
-                <td>{{ s.ricetta.articolo }}</td>
+              <tr class="production-row" data-row-href="{% url 'ui:simple_session' s.pk %}" tabindex="0">
+                <td><strong>{{ s.lotto_codice }}</strong><small>#{{ s.pk }}</small></td>
+                <td><strong>{{ s.ricetta.articolo.descrizione }}</strong><small>{{ s.ricetta.articolo.codice }}</small></td>
                 <td>{% if s.lotto_origine %}<a href="{% url 'ui:simple_session' s.lotto_origine_id %}">{{ s.lotto_origine }}</a>{% else %}—{% endif %}</td>
                 <td><span class="pill {{ s.stato }}">{{ s.get_stato_display }}</span></td>
-                <td>{{ s.aperta_il|date:'d/m/Y H:i' }}</td>
-                <td><a class="session-open-link" href="{% url 'ui:simple_session' s.pk %}">Apri produzione <span aria-hidden="true">→</span></a></td>
+                <td>{{ s.aperta_il|date:'d/m/Y' }}<small>{{ s.aperta_il|date:'H:i' }}</small></td>
+                <td><a class="session-open-link" href="{% url 'ui:simple_session' s.pk %}" aria-label="Apri {{ s.lotto_codice }}">Apri <span aria-hidden="true">→</span></a></td>
               </tr>
             {% empty %}
               <tr><td colspan="6" class="empty">Nessuna produzione {{ group.name|lower }} registrata.</td></tr>
