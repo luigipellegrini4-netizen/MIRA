@@ -1,1 +1,47 @@
-{% extends 'interfaccia/base.html' %}{% block content %}<a class="back" href="{% url 'ui:recipes' %}">← Ricette</a><div class="page-head"><div><p class="eyebrow">{% if recipe.pk %}RICETTA #{{ recipe.pk }}{% else %}NUOVA RICETTA{% endif %}</p><h1>{{ recipe.nome|default:'Nuova ricetta' }}</h1>{% if used %}<p class="muted">Formula già utilizzata: resta protetta nello storico.</p>{% endif %}</div></div>{% if recipe.pk %}<section class="panel form-panel"><h2>Crea una nuova versione da questa base</h2><form method="post" action="{% url 'ui:recipe_clone' recipe.pk %}">{% csrf_token %}<div class="form-grid"><div class="field"><label for="versione-nuova">Nuova versione</label><input id="versione-nuova" name="versione" maxlength="30" required></div><div class="field"><button class="button secondary" type="submit">Duplica ricetta</button></div></div></form></section>{% endif %}<section class="panel form-panel space-top"><form method="post" data-submit-once>{% csrf_token %}{{ form.non_field_errors }}<div class="form-grid">{% for field in form %}<div class="field {% if field.name == 'note' %}wide{% endif %}"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}</div>{% if lines %}<h2 class="space-top">Ingredienti per batch</h2>{{ lines.management_form }}{{ lines.non_form_errors }}{% for line in lines %}<div class="form-grid ingredient-panel">{% for field in line %}<div class="field"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}</div>{% endfor %}{% endif %}<div class="form-footer"><button class="button primary">Salva ricetta</button></div></form></section>{% endblock %}
+{% extends 'interfaccia/base.html' %}
+{% block content %}
+<a class="back" href="{% url 'ui:recipes' %}">← Ricette</a>
+<div class="page-head"><div>
+  <p class="eyebrow">{% if recipe.pk %}RICETTA #{{ recipe.pk }}{% else %}NUOVA RICETTA{% endif %}</p>
+  <h1>{{ recipe.nome|default:'Nuova ricetta' }}</h1>
+  {% if used %}<p class="muted">Formula già utilizzata: resta protetta nello storico.</p>{% endif %}
+</div></div>
+{% if recipe.pk %}
+<section class="panel form-panel">
+  <h2>Crea una nuova versione da questa base</h2>
+  <form method="post" action="{% url 'ui:recipe_clone' recipe.pk %}">{% csrf_token %}
+    <div class="form-grid">
+      <div class="field"><label for="versione-nuova">Nuova versione</label><input id="versione-nuova" name="versione" maxlength="30" required></div>
+      <div class="field"><button class="button secondary" type="submit">Duplica ricetta</button></div>
+    </div>
+  </form>
+</section>
+{% endif %}
+<section class="panel form-panel space-top">
+  <form method="post" data-submit-once>{% csrf_token %}{{ form.non_field_errors }}
+    <div class="form-grid">
+      {% for field in form %}<div class="field {% if field.name == 'note' %}wide{% endif %}"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    </div>
+    {% if lines %}
+      <h2 class="space-top">Ingredienti per batch</h2>
+      <p class="muted">Ogni riga deve indicare un articolo preciso. L’unità di misura è quella dell’articolo selezionato.</p>
+      {{ lines.management_form }}{{ lines.non_form_errors }}
+      {% for line in lines %}<div class="form-grid ingredient-panel">
+        {% for field in line %}<div class="field"><label>{{ field.label }}</label>{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+      </div>{% endfor %}
+    {% endif %}
+    {% if readonly_lines %}
+      <h2 class="space-top">Ingredienti per batch</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Articolo</th><th class="number">Quantità</th><th>Note</th></tr></thead>
+        <tbody>{% for line in readonly_lines %}<tr>
+          <td>{% if line.articolo %}<strong>{{ line.articolo.descrizione }}</strong><small>{{ line.articolo.codice }}</small>{% else %}<strong>Categoria storica: {{ line.categoria_articolo.nome }}</strong><small>Creare una nuova versione e scegliere un articolo preciso.</small>{% endif %}</td>
+          <td class="number"><strong>{{ line.quantita|floatformat:'-6' }}</strong> {% if line.articolo %}{{ line.articolo.unita_misura }}{% endif %}</td>
+          <td>{{ line.note|default:'—' }}</td>
+        </tr>{% empty %}<tr><td colspan="3" class="empty">Nessun ingrediente registrato.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% endif %}
+    <div class="form-footer"><button class="button primary">Salva ricetta</button></div>
+  </form>
+</section>
+{% endblock %}

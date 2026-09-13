@@ -29,12 +29,14 @@ class RecipeService:
     @transaction.atomic
     def add_line(*, actor, ricetta, quantita, articolo=None, categoria_articolo=None, note=""):
         require_permission(actor, "can_manage_process_configuration")
+        if articolo is None or categoria_articolo is not None:
+            raise ValidationError("Ogni ingrediente della ricetta deve indicare un articolo preciso.")
         recipe = Ricetta.objects.select_for_update().get(pk=persisted_id(ricetta, "Ricetta"))
         recipe.ensure_formula_editable()
         return RigaRicetta.objects.create(
             ricetta=recipe, quantita=quantity(quantita), note=note,
             articolo_id=persisted_id(articolo, "Articolo") if articolo is not None else None,
-            categoria_articolo_id=persisted_id(categoria_articolo, "Categoria") if categoria_articolo is not None else None,
+            categoria_articolo_id=None,
         )
 
     @staticmethod

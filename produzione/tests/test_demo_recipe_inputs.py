@@ -6,7 +6,7 @@ from django.test import TestCase
 from anagrafiche.models import Articolo
 from magazzino.models import Giacenza, Lotto, Movimento
 from magazzino.services import Allocation, Position, MovementService
-from produzione.models import InputLavorazione, CicloProduzione, Ricetta
+from produzione.models import InputLavorazione, CicloProduzione, Ricetta, RigaRicetta
 from produzione.services import (RecipeService, RecipeInputService, InputSelection,
     InputService, OutputService, ProductionCycleService, WorkExecutionService)
 from produzione.services.demo_seed import seed_demo
@@ -141,10 +141,10 @@ class DemoRecipeInputsTests(TestCase):
                 articolo=other, quantita="9.8", destinazioni=[Allocation(self.position, "9.8")])
         self.assertFalse(Lotto.objects.filter(tipo="PRODUZIONE").exists())
 
-    def test_overlapping_category_and_article_rows_share_one_stock_pool(self):
+    def test_legacy_overlapping_category_and_article_rows_share_one_stock_pool(self):
         recipe = RecipeService.create(actor=self.d["users"]["produzione"], articolo=self.d["articles"]["SEMILAVORATO"], nome="Sovrapposizione", versione="2")
         RecipeService.add_line(actor=self.d["users"]["produzione"], ricetta=recipe, articolo=self.d["articles"]["FRAGOLE"], quantita="8")
-        category_row = RecipeService.add_line(actor=self.d["users"]["produzione"], ricetta=recipe, categoria_articolo=self.d["categories"]["MP"], quantita="8")
+        category_row = RigaRicetta.objects.create(ricetta=recipe, categoria_articolo=self.d["categories"]["MP"], quantita="8")
         work = self.work(recipe)
         with self.assertRaises(ValidationError):
             self.proposal(work, "C")

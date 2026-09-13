@@ -9,6 +9,8 @@ from django.core.management import call_command
 from django.db import IntegrityError, connection, transaction
 from django.db.models.deletion import ProtectedError
 from django.test import RequestFactory, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
 
 from accounts.permissions import A, OP, RP, RM
 from anagrafiche.models import Articolo, CategoriaArticolo
@@ -97,11 +99,9 @@ class RecipeTests(TestCase):
             with self.subTest(amount=amount), self.assertRaises(ValidationError):
                 self.add_line(amount=amount)
 
-    def test_parent_category_matches_descendant_article(self):
-        line = self.add_line(categoria_articolo=self.category)
-        self.assertTrue(line.accetta_articolo(self.ingredient))
-        self.assertTrue(line.accetta_articolo(self.product))
-        self.assertFalse(line.accetta_articolo(self.packaging))
+    def test_new_category_requirement_is_rejected(self):
+        with self.assertRaisesMessage(ValidationError, "articolo preciso"):
+            self.add_line(categoria_articolo=self.category)
 
     def test_specific_article_does_not_match_other_article(self):
         line = self.add_line()
@@ -216,9 +216,64 @@ class RecipeTests(TestCase):
             self.ingredient.delete()
 
     def test_recipe_category_is_protected(self):
-        self.add_line(categoria_articolo=self.other_category)
+        # Compatibilità con eventuali righe storiche create prima della nuova
+        # regola: restano leggibili e proteggono la categoria referenziata.
+        RigaRicetta.objects.create(ricetta=self.recipe, categoria_articolo=self.other_category, quantita=1)
         with self.assertRaises(ProtectedError):
             self.other_category.delete()
+
+    def test_recipe_form_only_accepts_an_exact_active_article(self):
+        from interfaccia.recipe_forms import RecipeLineForm
+        form = RecipeLineForm()
+        self.assertEqual(set(form.fields), {"articolo", "quantita", "note"})
+        self.assertTrue(form.fields["articolo"].required)
+        self.ingredient.attivo = False
+        self.ingredient.save()
+        self.assertNotIn(self.ingredient, RecipeLineForm().fields["articolo"].queryset)
+
+    def test_editable_legacy_category_line_can_be_converted(self):
+        from interfaccia.recipe_forms import RecipeLineForm
+        legacy = RigaRicetta.objects.create(ricetta=self.recipe, categoria_articolo=self.category, quantita=1)
+        form = RecipeLineForm({"articolo": self.ingredient.pk, "quantita": "2", "note": "convertita"}, instance=legacy)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.articolo, self.ingredient)
+        self.assertIsNone(legacy.categoria_articolo)
+
+    def test_used_recipe_page_still_shows_its_formula(self):
+        from produzione.services import ProduzioneSemplificataService
+        self.add_line()
+        ProduzioneSemplificataService.apri_roboqbo(
+            actor=self.planner, ricetta=self.recipe, numero_batch_previsti=1,
+        )
+        self.client.force_login(self.planner)
+        response = self.client.get(reverse("ui:recipe", args=[self.recipe.pk]))
+        self.assertContains(response, self.ingredient.descrizione)
+        self.assertContains(response, self.ingredient.unita_misura)
+        self.assertContains(response, "Formula già utilizzata")
+
+    def test_recipe_csv_rejects_category_rows_and_rolls_back(self):
+        line = self.add_line()
+        self.client.force_login(self.planner)
+        csv_data = (
+            "prodotto;nome;versione;attiva;note_ricetta;ingrediente;categoria_ingrediente;quantita;note_riga\n"
+            f"{self.product.codice};Confettura;1;SI;;;{self.category.codice};4;generica\n"
+        )
+        response = self.client.post(reverse("ui:recipes_import"), {
+            "file": SimpleUploadedFile("ricette.csv", csv_data.encode("utf-8"), content_type="text/csv")
+        }, follow=True)
+        self.assertContains(response, "sostituire la categoria ingrediente")
+        line.refresh_from_db()
+        self.assertEqual(line.quantita, Decimal("2.5"))
+
+    def test_recipe_csv_exports_legacy_category_for_manual_conversion(self):
+        RigaRicetta.objects.create(ricetta=self.recipe, categoria_articolo=self.category, quantita=1)
+        self.client.force_login(self.planner)
+        response = self.client.get(reverse("ui:recipes_csv"))
+        content = response.content.decode("utf-8-sig")
+        self.assertIn("categoria_ingrediente", content.splitlines()[0])
+        self.assertIn(f";{self.category.codice};1.000000;", content)
 
     def test_read_permissions_are_more_permissive_than_write(self):
         for user in (self.operator, self.warehouse):

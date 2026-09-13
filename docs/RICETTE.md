@@ -7,10 +7,10 @@ articolo, nome, versione, attiva, note. Articolo/versione è univoco anche nel D
 La versione è un codice testuale (ad esempio `1`, `2`, `1.1`). Non esiste
 quantita_riferimento e non viene memorizzato il numero batch nella ricetta.
 
-`RigaRicetta` contiene ricetta, articolo oppure categoria_articolo, quantita e note.
-Il vincolo XOR e la quantità positiva sono controllati sia da Django sia da MySQL.
-La categoria può avere figli: `accetta_articolo(articolo)` ammette la categoria
-stessa e qualunque discendente. Una riga con articolo specifico ammette solo quello.
+`RigaRicetta` contiene ricetta, articolo, quantita e note. Le nuove righe devono
+sempre indicare un articolo preciso. Il campo categoria_articolo rimane nello
+schema soltanto per leggere eventuali formule storiche; interfaccia, CSV e
+RecipeService non consentono di creare nuove righe generiche.
 Le quantità usano 18 cifre totali e 6 decimali, come il magazzino.
 
 ## Permessi e Admin
@@ -20,7 +20,7 @@ Le quantità usano 18 cifre totali e 6 decimali, come il magazzino.
 - Le ricette si disattivano dall'Admin. Non è disponibile la cancellazione della ricetta.
 - Le righe di una formula non utilizzata si possono rimuovere; quelle storiche no.
 - In Admin, aprire Produzione → Ricette. Le righe sono modificabili anche nella
-  pagina della ricetta; articolo e categoria hanno ricerca autocomplete.
+  pagina della ricetta; l'articolo deve essere selezionato esplicitamente.
 
 `bootstrap_roles` aggiorna i permessi dei nuovi modelli e va rilanciato dopo migrate.
 
@@ -57,7 +57,7 @@ ricetta = RecipeService.create(
 riga = RecipeService.add_line(
     actor=responsabile,
     ricetta=ricetta,
-    categoria_articolo=categoria_frutta,
+    articolo=fragole_gelo,
     quantita="25.000000",
 )
 RecipeService.update_line(actor=responsabile, riga=riga, quantita="26")
@@ -66,8 +66,8 @@ fabbisogni = RecipeService.requirements(actor=operatore, ricetta=nuova, numero_b
 ```
 
 `requirements` restituisce una riga di risultato per ogni RigaRicetta con ID,
-articolo/categoria, quantità per batch e quantità totale. Non aggrega righe diverse:
-possono avere unità differenti o categorie sovrapposte. Non seleziona lotti, non
+articolo, quantità per batch e quantità totale. Non aggrega righe diverse:
+possono avere unità differenti. Non seleziona lotti, non
 prenota stock e non crea ancora lavorazioni. La pianificazione dei batch arriverà
 nei servizi produttivi successivi.
 

@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
-from anagrafiche.models import Articolo, CategoriaArticolo
+from anagrafiche.models import Articolo
 from produzione.models import Ricetta, RigaRicetta
 from produzione.services import RecipeService
 from .recipe_forms import RecipeForm, RecipeLines
@@ -38,7 +38,10 @@ def recipe_edit(request, pk=None):
                 recipe.attiva = form.cleaned_data["attiva"]; recipe.save(); return redirect("ui:recipe", pk=recipe.pk)
         else:
             recipe = form.save(); lines.instance = recipe; lines.save(); messages.success(request, "Ricetta salvata."); return redirect("ui:recipe", pk=recipe.pk)
-    return render(request, "interfaccia/recipe_edit.html", {"section": "ricette", "recipe": recipe, "form": form, "lines": lines, "used": used})
+    return render(request, "interfaccia/recipe_edit.html", {
+        "section": "ricette", "recipe": recipe, "form": form, "lines": lines, "used": used,
+        "readonly_lines": recipe.righe.select_related("articolo", "categoria_articolo") if used else (),
+    })
 
 
 @permitted("auth.can_manage_process_configuration")
@@ -86,10 +89,13 @@ def recipes_import(request):
             for line in list(recipe.righe.all()): RecipeService.remove_line(actor=request.user, riga=line)
             for number, row in rows:
                 if not row["quantita"].strip(): continue
-                article = Articolo.objects.get(codice=row["ingrediente"].strip()) if row["ingrediente"].strip() else None
-                category = CategoriaArticolo.objects.get(codice=row["categoria_ingrediente"].strip()) if row["categoria_ingrediente"].strip() else None
-                RecipeService.add_line(actor=request.user, ricetta=recipe, articolo=article, categoria_articolo=category, quantita=row["quantita"].replace(",","."), note=row["note_riga"])
+                if row.get("categoria_ingrediente", "").strip():
+                    raise ValidationError(f"Riga {number}: sostituire la categoria ingrediente con un articolo preciso.")
+                if not row["ingrediente"].strip():
+                    raise ValidationError(f"Riga {number}: indicare il codice dell’ingrediente.")
+                article = Articolo.objects.get(codice=row["ingrediente"].strip())
+                RecipeService.add_line(actor=request.user, ricetta=recipe, articolo=article, quantita=row["quantita"].replace(",","."), note=row["note_riga"])
         messages.success(request, f"Importate {len(groups)} ricette.")
-    except (ValidationError, UnicodeDecodeError, csv.Error, Articolo.DoesNotExist, CategoriaArticolo.DoesNotExist) as exc:
+    except (ValidationError, UnicodeDecodeError, csv.Error, Articolo.DoesNotExist) as exc:
         transaction.set_rollback(True); messages.error(request, "Importazione annullata: " + " · ".join(getattr(exc, "messages", [str(exc)])))
     return redirect("ui:recipes")
