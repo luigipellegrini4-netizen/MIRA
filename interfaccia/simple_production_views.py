@@ -99,7 +99,11 @@ def session(request, pk):
     obj = get_object_or_404(SessioneProduzioneSemplificata.objects.select_related("postazione__risorsa", "ricetta__articolo", "lotto_origine"), pk=pk)
     controls = list(obj.controlli.prefetch_related("associazioni_batch__batch"))
     ncs = list(obj.non_conformita_semplificate.select_related("controllo"))
-    nonconforming_control_ids = {control.pk for control in controls if not control.conforme}
+    nonconforming_control_ids = {control.pk for control in controls if control.esito == "NC"}
+    incomplete_count = sum(not control.completo for control in controls)
+    if obj.tipo == "ROBOQBO":
+        recorded_batches = {control.numero for control in controls if control.tipo == "BATCH"}
+        incomplete_count += len(set(range(1, obj.numero_batch_previsti + 1)) - recorded_batches)
     nc_count = len(nonconforming_control_ids) + sum(
         1 for nc in ncs if not nc.controllo_id or nc.controllo_id not in nonconforming_control_ids
     )
@@ -126,6 +130,8 @@ def session(request, pk):
                 "esito_tracciato_termico": control.esito_tracciato_termico if control else "",
             })
         batch_formset = BatchControlFormSet(initial=initial, prefix="batch")
+        for form, number in zip(batch_formset.forms, range(1, obj.numero_batch_previsti + 1)):
+            form.control_outcome = existing[number].esito if number in existing else "Incompleto"
         displayed_controls = [
             control for control in controls
             if control.tipo != "BATCH" or control.numero > obj.numero_batch_previsti
@@ -133,7 +139,7 @@ def session(request, pk):
     return render(request, "interfaccia/semplice/session.html", {"section": "produzione-semplice", "session": obj,
         "controls": controls, "displayed_controls": displayed_controls, "batch_formset": batch_formset,
         "picks": obj.prelievi.select_related("lotto__articolo", "movimento__ubicazione_origine"),
-        "ncs": ncs, "nc_count": nc_count, "forecast": forecast,
+        "ncs": ncs, "nc_count": nc_count, "incomplete_count": incomplete_count, "forecast": forecast,
         "input_totals": obj.quantita_iniziale_per_unita,
         "labeling_remaining": labeling_remaining})
 

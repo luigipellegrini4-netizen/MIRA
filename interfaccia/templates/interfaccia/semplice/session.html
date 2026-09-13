@@ -7,6 +7,7 @@
 {% if session.tipo == 'CONFEZIONAMENTO' %}<div class="notice">Lotto prodotto finito: <strong>{{ session.lotto_origine.lotto_prodotto.codice_lotto }}</strong>.{% if session.quantita_finale_kg %} Quantità confezionata in questa lavorazione: <strong>{{ session.quantita_finale_kg|floatformat:'-6' }} {{ session.ricetta.articolo.unita_misura }}</strong>.{% endif %} Stato: <strong>{{ session.lotto_origine.lotto_prodotto.get_stato_confezionamento_display }}</strong>.</div>{% endif %}
 {% if forecast %}<section class="panel"><div class="panel-head"><div><h2>Previsione complessiva</h2><small>Non prenota e non consuma materiale.</small></div></div><div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Articolo</th><th class="number">Quantità prevista</th></tr></thead><tbody>{% for article, quantity in forecast %}<tr><td>{{ article.descrizione }}</td><td>{{ article.codice }}</td><td class="number"><strong>{{ quantity }}</strong> {{ article.unita_misura }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 {% if picks %}<section class="panel"><div class="panel-head"><div><h2>Prelievi effettivi</h2><small>Le quantità restano separate per unità di misura.</small></div><div class="actions">{% for total in input_totals %}<span class="pill neutral">{{ total.quantita|floatformat:'-6' }} {{ total.unita }}</span>{% endfor %}</div></div><div class="table-wrap"><table><thead><tr><th>Batch</th><th>Articolo</th><th>Lotto</th><th>Posizione di prelievo</th><th class="number">Quantità</th><th>Ora</th></tr></thead><tbody>{% for p in picks %}<tr><td>{{ p.numero_batch|default:'—' }}</td><td>{{ p.lotto.articolo }}</td><td>{{ p.lotto.codice_lotto }}</td><td>{% if p.movimento and p.movimento.ubicazione_origine %}<strong>{{ p.movimento.ubicazione_origine.codice }}</strong>{% if p.movimento.scaffale_origine %} · scaffale {{ p.movimento.scaffale_origine }}{% endif %}{% if p.movimento.piano_origine %} · piano {{ p.movimento.piano_origine }}{% endif %}{% else %}—{% endif %}</td><td class="number"><strong>{{ p.quantita_kg|floatformat:'-6' }} {{ p.lotto.articolo.unita_misura }}</strong></td><td>{{ p.registrato_il|date:'d/m H:i' }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+{% if incomplete_count %}<div class="notice">Controlli da completare: <strong>{{ incomplete_count }}</strong>. Sono inclusi i batch previsti non ancora registrati. Un controllo con valori NC o NA resta NC anche se incompleto.</div>{% endif %}
 {% if batch_formset %}
 <section class="panel">
   <div class="panel-head"><div><h2>Controlli dei batch previsti</h2><small>Inserisci soltanto gli orari e l’esito del tracciato termico.</small></div><span class="counter">{{ session.numero_batch_previsti }} batch</span></div>
@@ -14,7 +15,7 @@
     {% csrf_token %}{{ batch_formset.management_form }}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Batch</th><th>Ora inizio</th><th>Ora fine</th><th>Tracciato 82 °C × 60 secondi</th></tr></thead>
+        <thead><tr><th>Batch</th><th>Ora inizio</th><th>Ora fine</th><th>Tracciato 82 °C × 60 secondi</th><th>Esito salvato</th></tr></thead>
         <tbody>
           {% for form in batch_formset %}
             <tr>
@@ -22,6 +23,7 @@
               <td>{{ form.inizio }}{{ form.inizio.errors }}</td>
               <td>{{ form.fine }}{{ form.fine.errors }}</td>
               <td>{{ form.esito_tracciato_termico }}{{ form.esito_tracciato_termico.errors }}</td>
+              <td><span class="pill {% if form.control_outcome != 'C' %}amber{% endif %}">{{ form.control_outcome }}</span></td>
             </tr>
           {% endfor %}
         </tbody>
@@ -49,7 +51,7 @@
             <td>{% if c.ph != None %}{{ c.ph|floatformat:'-3' }}{% else %}—{% endif %}</td>
             <td>{{ c.esito_pastorizzazione|default:'—' }}</td>
             <td>{{ c.esito_shock_vuoto|default:'—' }}</td>
-            <td><span class="pill {% if not c.conforme %}amber{% endif %}">{% if c.conforme %}C{% else %}NC{% endif %}</span></td>
+            <td><span class="pill {% if not c.conforme %}amber{% endif %}">{{ c.esito }}</span></td>
           </tr>
         {% empty %}<tr><td colspan="11" class="empty">{% if batch_formset %}Nessun controllo tank o batch aggiuntivo registrato.{% else %}Nessun controllo registrato.{% endif %}</td></tr>{% endfor %}
       </tbody>

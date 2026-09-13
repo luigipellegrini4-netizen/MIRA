@@ -220,20 +220,35 @@ class ControlloSessioneSemplificata(ValidatedModel):
         ]
 
     @property
-    def conforme(self):
+    def completo(self):
+        required = {
+            self.Tipo.BATCH: ("inizio", "fine", "esito_tracciato_termico"),
+            self.Tipo.TANK: ("gradi_brix", "ph"),
+            self.Tipo.SEMILAVORATO: ("esito_pastorizzazione", "esito_shock_vuoto"),
+            self.Tipo.CARRELLO: ("esito_pastorizzazione", "esito_shock_vuoto"),
+        }
+        fields = required.get(self.tipo, ())
+        return bool(fields) and all(getattr(self, field) not in (None, "") for field in fields)
+
+    @property
+    def esito(self):
         outcomes = (
             self.esito_tracciato_termico,
             self.esito_pastorizzazione,
             self.esito_shock_vuoto,
         )
         if any(value in {self.Esito.NC, self.Esito.NA} for value in outcomes):
-            return False
+            return "NC"
         if self.tipo == self.Tipo.TANK:
             if self.gradi_brix is not None and not Decimal("40") < self.gradi_brix < Decimal("45"):
-                return False
+                return "NC"
             if self.ph is not None and self.ph > Decimal("4.1"):
-                return False
-        return True
+                return "NC"
+        return "C" if self.completo else "Incompleto"
+
+    @property
+    def conforme(self):
+        return self.esito == "C"
 
     def clean(self):
         super().clean()

@@ -277,7 +277,7 @@ class ControlForm(forms.Form):
             f"Batch {control.numero}"
             f" · {control.inizio.strftime('%H:%M') if control.inizio else 'inizio —'}"
             f" / {control.fine.strftime('%H:%M') if control.fine else 'fine —'}"
-            f" · {'C' if control.conforme else 'NC'}"
+            f" · {control.esito}"
         )
         field_for_code = {
             "INIZIO": "inizio", "FINE": "fine", "TRACCIATO": "esito_tracciato_termico",

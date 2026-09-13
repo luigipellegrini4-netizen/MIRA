@@ -47,7 +47,7 @@
   <section class="panel panel-body space-top">
     <p class="eyebrow">CONTROLLO COLLEGATO</p>
     <h2>{{ case.controllo.get_tipo_display }} {{ case.controllo.numero }}</h2>
-    <p>Esito: <strong>{% if case.controllo.conforme %}C{% else %}NC{% endif %}</strong></p>
+    <p>Esito: <strong>{{ case.controllo.esito }}</strong></p>
   </section>
 {% endif %}
 {% if case.presa_in_carico_da %}
