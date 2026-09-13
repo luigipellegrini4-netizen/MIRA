@@ -2,6 +2,7 @@ import csv
 import io
 import json
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -13,9 +14,16 @@ from .backup import create_backup, read_backup, reset_trial_data, restore_backup
 from .views import permitted
 
 
-@permitted("auth.can_adjust_inventory")
+@login_required
 @require_http_methods(["GET", "POST"])
 def manage_csv(request):
+    if not request.user.is_active or not (
+        request.user.has_perm("auth.can_adjust_inventory")
+        or request.user.has_perm("auth.can_manage_backups")
+    ):
+        raise PermissionDenied
+    if request.method == "POST" and not request.user.has_perm("auth.can_adjust_inventory"):
+        raise PermissionDenied
     selected_kind = request.GET.get("tipo", "")
     context = {"section": "configurazione", "kinds": HEADERS,
                "selected_kind": selected_kind if selected_kind in HEADERS else ""}
@@ -40,7 +48,7 @@ def manage_csv(request):
     return render(request, "interfaccia/manage_csv.html", context)
 
 
-@permitted("auth.can_adjust_inventory")
+@permitted("auth.can_manage_backups")
 def download_backup(request):
     content = json.dumps(create_backup(), ensure_ascii=False, indent=2)
     response = HttpResponse(content, content_type="application/json; charset=utf-8")
@@ -48,7 +56,7 @@ def download_backup(request):
     return response
 
 
-@permitted("auth.can_adjust_inventory")
+@permitted("auth.can_manage_backups")
 @require_http_methods(["POST"])
 def restore(request):
     try:
@@ -65,7 +73,7 @@ def restore(request):
     return redirect("ui:manage_csv")
 
 
-@permitted("auth.can_adjust_inventory")
+@permitted("auth.can_manage_backups")
 @require_http_methods(["POST"])
 def reset_database(request):
     try:

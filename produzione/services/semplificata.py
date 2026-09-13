@@ -116,6 +116,8 @@ class ProduzioneSemplificataService:
     def apri_semilavorato(cls, *, actor, ricetta, numero_batch_previsti, note=""):
         require_permission(actor, "can_execute_production")
         business_mutex()
+        from produzione.models import Ricetta
+        ricetta = Ricetta.objects.select_for_update().get(pk=ricetta.pk)
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="SEMILAVORATO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo Semilavorati ha già una sessione aperta.")
         return _record(SessioneProduzioneSemplificata(
@@ -131,6 +133,8 @@ class ProduzioneSemplificataService:
     def apri_roboqbo(cls, *, actor, ricetta, numero_batch_previsti, note=""):
         require_permission(actor, "can_execute_production")
         business_mutex()
+        from produzione.models import Ricetta
+        ricetta = Ricetta.objects.select_for_update().get(pk=ricetta.pk)
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="ROBOQBO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo RoboQbo ha già una sessione aperta.")
         return _record(SessioneProduzioneSemplificata(

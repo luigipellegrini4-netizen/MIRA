@@ -54,7 +54,9 @@ class Ricetta(ValidatedModel):
             work_model = apps.get_model("produzione", "Lavorazione")
         except LookupError:
             return False
-        return work_model.objects.filter(ricetta_id=self.pk).exists()
+        session_model = apps.get_model("produzione", "SessioneProduzioneSemplificata")
+        return (work_model.objects.filter(ricetta_id=self.pk).exists()
+                or session_model.objects.filter(ricetta_id=self.pk).exists())
 
     def ensure_formula_editable(self):
         if self.utilizzata:

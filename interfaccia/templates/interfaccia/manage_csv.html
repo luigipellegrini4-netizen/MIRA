@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-head"><div><p class="eyebrow">AMMINISTRAZIONE</p><h1>Configurazione e dati</h1><p class="muted">Backup completo e scambio dei dati di magazzino.</p></div>{% if user.is_staff %}<a class="button secondary" href="{% url 'admin:index' %}">Configurazione avanzata →</a>{% endif %}</div>
 {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+{% if perms.auth.can_manage_backups %}
 <div class="two-columns">
     <section class="panel panel-body"><h2>Backup completo</h2><p class="muted">Scarica utenti, configurazioni, anagrafiche e tutto lo storico operativo in un JSON leggibile e modificabile.</p><a class="button primary" href="{% url 'ui:download_backup' %}">Scarica backup JSON</a></section>
     <section class="panel panel-body"><h2>Ripristino backup</h2><p class="muted">Il ripristino sostituisce tutti i dati di MIRA con quelli contenuti nel backup. Le migrazioni del database non vengono modificate.</p><form method="post" enctype="multipart/form-data" action="{% url 'ui:restore_backup' %}" data-submit-once>{% csrf_token %}<div class="field"><label for="backup">Backup JSON</label><input id="backup" type="file" name="backup" accept=".json,application/json" required></div><div class="field space-top"><label for="conferma">Conferma</label><input id="conferma" name="conferma" required autocomplete="off" placeholder="Scrivi RIPRISTINA MIRA"></div><div class="form-footer"><button class="button primary" type="submit">Ripristina backup</button></div></form></section>
@@ -13,6 +14,8 @@
     <div class="notice warning">Elimina giacenze, lotti, movimenti, produzione, qualità, ricette e gli articoli non richiesti dalle configurazioni. Conserva utenti, ruoli, categorie, ubicazioni, fornitori e configurazioni. Prima dell’operazione viene salvato automaticamente un backup JSON nella cartella <strong>backups</strong>.</div>
     <form method="post" action="{% url 'ui:reset_database' %}" data-submit-once>{% csrf_token %}<div class="field"><label for="conferma-azzera">Conferma azzeramento</label><input id="conferma-azzera" name="conferma" required autocomplete="off" placeholder="Scrivi AZZERA MIRA"></div><div class="form-footer"><button class="button secondary danger" type="submit">Azzera dati di prova</button></div></form>
 </section>
+{% endif %}
+{% if perms.auth.can_adjust_inventory %}
 <div class="page-head space-top"><div><p class="eyebrow">SCAMBIO DATI CSV</p><h2>Articoli, lotti e giacenze</h2><p class="muted">Esporta i dati o controlla un file prima di importarlo.</p></div></div>
 <div class="stats csv-downloads">
     {% for kind, headers in kinds.items %}<a class="stat" href="{% url 'ui:download_csv' kind %}"><span>{{ kind|title }}</span><strong>CSV</strong><small>Scarica dati e intestazioni →</small></a>{% endfor %}
@@ -34,5 +37,6 @@
     <div class="table-wrap"><table><thead><tr><th>Riga</th><th>Operazione prevista</th><th>Esito</th></tr></thead><tbody>{% for item in report %}<tr><td>{{ item.line }}</td><td>{{ item.action }}</td><td>{% if item.error %}<span class="danger">{{ item.error }}</span>{% else %}<span class="pill">Valida</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% if not errors %}<section class="panel form-panel space-top"><form method="post" data-submit-once>{% csrf_token %}<input type="hidden" name="confirm" value="1"><input type="hidden" name="token" value="{{ token }}"><div class="field"><label for="motivazione">Motivazione dell’importazione</label><input id="motivazione" name="motivazione" maxlength="250" required placeholder="Es. inventario fisico del 08/09/2026"><small>Verrà registrata nei movimenti di rettifica.</small></div><div class="form-footer"><button class="button primary" type="submit">Conferma importazione</button></div></form></section>{% endif %}
+{% endif %}
 {% endif %}
 {% endblock %}

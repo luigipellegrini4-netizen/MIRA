@@ -41,6 +41,28 @@ class RecipeTests(TestCase):
         recipe = RecipeService.create(actor=self.planner, articolo=self.product, nome="Nuova", versione="2")
         self.assertEqual(recipe.articolo, self.product)
 
+    def test_simple_production_freezes_recipe_and_lines(self):
+        from produzione.services import ProduzioneSemplificataService
+        line = self.add_line()
+        ProduzioneSemplificataService.apri_roboqbo(
+            actor=self.planner, ricetta=self.recipe, numero_batch_previsti=1,
+        )
+        self.assertTrue(self.recipe.utilizzata)
+        with self.assertRaises(ValidationError):
+            RecipeService.update_line(actor=self.planner, riga=line, quantita="99")
+        with self.assertRaises(ValidationError):
+            RecipeService.remove_line(actor=self.planner, riga=line)
+        self.recipe.articolo = self.ingredient
+        with self.assertRaises(ValidationError):
+            self.recipe.save()
+        self.recipe.refresh_from_db()
+        self.recipe.attiva = False
+        self.recipe.save()
+        clone = RecipeService.new_version(actor=self.planner, ricetta=self.recipe.pk, versione="2")
+        self.assertNotEqual(clone.pk, self.recipe.pk)
+        line.refresh_from_db()
+        self.assertEqual(line.quantita, Decimal("2.5"))
+
     def test_administrator_can_manage_recipes(self):
         recipe = RecipeService.create(actor=self.administrator, articolo=self.product, nome="Nuova", versione="2")
         self.assertIsNotNone(recipe.pk)
