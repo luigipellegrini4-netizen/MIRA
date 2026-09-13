@@ -520,15 +520,22 @@ class ProduzioneSemplificataService:
             raise ValidationError("La sessione di confezionamento non è aperta.")
         lot = Lotto.objects.select_for_update().get(pk=current.lotto_origine.lotto_prodotto_id)
         total = current.lotto_origine.quantita_finale_kg or Decimal("0")
-        remaining = total - lot.quantita_confezionata
+        from .packaging_availability import packaging_availability
+        from magazzino.services.types import quantity
+        quantita_confezionata = quantity(quantita_confezionata)
+        available, remaining = packaging_availability(lot, total)
         if quantita_confezionata > remaining:
-            raise ValidationError(f"Quantità superiore al residuo da confezionare: {remaining:g}.")
+            raise ValidationError(f"Quantità superiore al limite confezionabile: {remaining:g}. Disponibilità attuale: {available:g}.")
         lot.quantita_confezionata += quantita_confezionata
         lot.stato_confezionamento = (
             Lotto.StatoConfezionamento.CONFEZIONATO if lot.quantita_confezionata >= total
             else Lotto.StatoConfezionamento.PARZIALE
         )
-        lot.full_clean(); lot.save(update_fields=["quantita_confezionata", "stato_confezionamento"])
+        # Aggiornamento riservato al servizio: la sessione chiusa registra autore,
+        # data e quantità nella stessa transazione, come audit del confezionamento.
+        from django.db import models
+        lot.full_clean()
+        models.Model.save(lot, force_update=True, update_fields=["quantita_confezionata", "stato_confezionamento"])
         current.quantita_finale_kg = quantita_confezionata
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         return _record(current)

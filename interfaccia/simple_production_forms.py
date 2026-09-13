@@ -518,17 +518,20 @@ class LabelingSummaryForm(forms.Form):
 
 class PackagingSummaryForm(forms.Form):
     lotto_display = forms.CharField(label="Lotto prodotto finito", disabled=True)
-    residuo_display = forms.CharField(label="Quantità ancora da confezionare", disabled=True)
+    disponibile_display = forms.CharField(label="Disponibilità attuale in magazzino", disabled=True)
+    residuo_display = forms.CharField(label="Quantità massima confezionabile", disabled=True)
     quantita_confezionata = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità confezionata")
 
     def __init__(self, *args, session, **kwargs):
         super().__init__(*args, **kwargs)
         lot = session.lotto_origine.lotto_prodotto
         total = session.lotto_origine.quantita_finale_kg or 0
-        self.remaining = max(total - lot.quantita_confezionata, 0)
+        from produzione.services.packaging_availability import packaging_availability
+        available, self.remaining = packaging_availability(lot, total)
         unit = lot.articolo.unita_misura
         self.fields["lotto_display"].initial = f"{lot.codice_lotto} · {lot.articolo.codice} — {lot.articolo.descrizione}"
         self.fields["residuo_display"].initial = f"{self.remaining:g} {unit}"
+        self.fields["disponibile_display"].initial = f"{available:g} {unit}"
         self.fields["quantita_confezionata"].label = f"Quantità confezionata ({unit})"
 
     def clean(self):
@@ -536,4 +539,5 @@ class PackagingSummaryForm(forms.Form):
         if data.get("quantita_confezionata") and data["quantita_confezionata"] > self.remaining:
             self.add_error("quantita_confezionata", f"La quantità supera il residuo: {self.remaining:g}.")
         data.pop("lotto_display", None); data.pop("residuo_display", None)
+        data.pop("disponibile_display", None)
         return data
