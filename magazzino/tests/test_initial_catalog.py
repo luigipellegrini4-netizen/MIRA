@@ -20,7 +20,8 @@ class InitialCatalogRulesTests(SimpleTestCase):
         positions = {model: index for index, model in enumerate(models)}
         for model in models:
             for field in model._meta.fields:
-                if field.is_relation and field.related_model in positions:
+                if (field.is_relation and field.related_model in positions
+                        and field.related_model is not model):
                     self.assertLess(positions[model], positions[field.related_model])
         labels = {model._meta.label for model in models}
         self.assertNotIn("produzione.Ricetta", labels)

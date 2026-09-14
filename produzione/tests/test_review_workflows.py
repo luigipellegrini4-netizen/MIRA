@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from interfaccia.simple_production_forms import OpenFillingForm
 from magazzino.models import Giacenza, Movimento
+from magazzino.services import LotCorrectionService
 from produzione.services import ProduzioneSemplificataService as Service
 from produzione.services.demo_seed import seed_demo
 from vendite.forms import VenditaForm
@@ -34,6 +35,19 @@ class ReviewWorkflowTests(TestCase):
         self.assertFalse(OpenFillingForm().fields["lotto_origine"].queryset.filter(pk=self.session.pk).exists())
         filling.refresh_from_db()
         self.assertEqual(filling.stato, "ANNULLATA")
+
+    def test_session_uses_lot_as_the_only_code_source(self):
+        self.assertNotIn("lotto_codice", {field.name for field in self.session._meta.fields})
+        self.assertIsNotNone(self.session.lotto_id)
+        self.assertFalse(self.session.lotto.giacenze.exists())
+        LotCorrectionService.correct(
+            actor=self.actor,
+            lotto=self.session.lotto,
+            motivazione="Correzione codice inserito per errore",
+            codice_lotto="RBQB-CORRETTO",
+        )
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.lotto.codice_lotto, "RBQB-CORRETTO")
 
     def test_batch_dates_survive_next_day_save_and_correction(self):
         rows = [{"numero": 1, "inizio": time(8), "fine": time(9), "esito_tracciato_termico": "C"}]

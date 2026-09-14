@@ -1,7 +1,7 @@
 {% extends 'interfaccia/base.html' %}
-{% block title %}Prelievo {{ session.lotto_codice }} · MIRA{% endblock %}
+{% block title %}Prelievo {{ session.lotto.codice_lotto }} · MIRA{% endblock %}
 {% block content %}
-<a class="back" href="{% url 'ui:simple_session' session.pk %}">← Produzione {{ session.lotto_codice }}</a>
+<a class="back" href="{% url 'ui:simple_session' session.pk %}">← Produzione {{ session.lotto.codice_lotto }}</a>
 <div class="page-head">
   <div>
     <p class="eyebrow">{{ session.get_tipo_display|upper }} / PRELIEVO COMPLESSIVO</p>

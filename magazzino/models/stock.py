@@ -131,8 +131,8 @@ class Movimento(HistoricalModel):
                 if self.tipo != expected_type or self.lotto_id != record.lotto_id:
                     raise ValidationError("Movimento incompatibile con lotto o tipo della registrazione produttiva.")
         if self.sessione_semplificata_id:
-            expected = self.sessione_semplificata.lotto_prodotto_id
-            if self.tipo != self.Tipo.PRODUZIONE or expected not in {None, self.lotto_id}:
+            expected = self.sessione_semplificata.lotto_id
+            if self.tipo != self.Tipo.PRODUZIONE or expected != self.lotto_id:
                 raise ValidationError("Movimento incompatibile con la sessione semplificata.")
                 if record.lavorazione.stato != "IN_CORSO":
                     raise ValidationError("La registrazione produttiva appartiene a una lavorazione non in corso.")

@@ -24,7 +24,7 @@ class Command(BaseCommand):
             movements = list(lot.movimenti.all())
             physical = sum((s.quantita for s in stocks), Decimal("0"))
             packaged = SessioneProduzioneSemplificata.objects.filter(
-                tipo="CONFEZIONAMENTO", stato="CHIUSA", lotto_origine__lotto_prodotto=lot
+                tipo="CONFEZIONAMENTO", stato="CHIUSA", lotto_origine__lotto=lot
             ).aggregate(total=Sum("quantita_finale_kg"))["total"] or Decimal("0")
             reasons = []
             if packaged != lot.quantita_confezionata:

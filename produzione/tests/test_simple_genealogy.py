@@ -17,12 +17,12 @@ class SimpleGenealogyTests(TestCase):
         self.recipe = m("produzione", "Ricetta").objects.create(articolo=self.article, nome="Test", versione="1")
         self.location = m("anagrafiche", "Ubicazione").objects.create(codice="MAG", nome="Magazzino")
         self.supplier = m("anagrafiche", "Fornitore").objects.create(codice="F", ragione_sociale="Fornitore")
-        self.raw, self.sl, self.inv, self.pf, self.moca = [self.lot(code) for code in ("RAW", "SLV", "INV", "PF", "MOCA")]
+        self.raw, self.sl, self.rb, self.inv, self.pf, self.moca = [self.lot(code) for code in ("RAW", "SLV", "RBQB", "INV", "PF", "MOCA")]
         sl = self.session("SEMILAVORATO", self.sl)
-        rb = self.session("ROBOQBO")
+        rb = self.session("ROBOQBO", self.rb)
         inv = self.session("INVASETTAMENTO", self.inv, rb)
         label = self.session("ETICHETTATURA", self.pf, inv)
-        packaging = self.session("CONFEZIONAMENTO", parent=label)
+        packaging = self.session("CONFEZIONAMENTO", self.pf, label)
         for source, dest in ((self.raw, sl), (self.sl, rb), (self.inv, label), (self.moca, packaging)):
             m("produzione", "PrelievoSessioneSemplificata").objects.create(
                 sessione=dest, lotto=source, quantita_kg=10, registrato_da_id=self.actor.pk)
@@ -40,7 +40,7 @@ class SimpleGenealogyTests(TestCase):
 
     def session(self, kind, lot=None, parent=None):
         return self.model("produzione", "SessioneProduzioneSemplificata").objects.create(
-            tipo=kind, ricetta=self.recipe, lotto_codice=kind, lotto_prodotto=lot, lotto_origine=parent,
+            tipo=kind, ricetta=self.recipe, lotto=lot, lotto_origine=parent,
             stato="CHIUSA", aperta_da_id=self.actor.pk, chiusa_da_id=self.actor.pk, chiusa_il=timezone.now())
 
     def trace(self, lot, direction):
@@ -48,7 +48,7 @@ class SimpleGenealogyTests(TestCase):
 
     def test_raw_reaches_finished_lot_and_customer(self):
         graph = self.trace(self.raw, "VALLE")
-        self.assertEqual({r["id"] for r in graph["lotti"]}, {self.raw.pk, self.sl.pk, self.inv.pk, self.pf.pk})
+        self.assertEqual({r["id"] for r in graph["lotti"]}, {self.raw.pk, self.sl.pk, self.rb.pk, self.inv.pk, self.pf.pk})
         self.assertEqual(len(graph["vendite"]), 1)
         self.assertEqual(graph["vendite"][0]["quantita"], "5.000000")
         self.assertEqual(graph["vendite"][0]["cliente"], "Cliente finale")

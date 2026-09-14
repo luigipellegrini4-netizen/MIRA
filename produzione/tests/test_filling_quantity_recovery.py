@@ -19,8 +19,8 @@ class FillingQuantityRecoveryTests(TestCase):
         self.location = model("anagrafiche", "Ubicazione").objects.create(codice="MAG", nome="Magazzino")
         self.lot = model("magazzino", "Lotto").objects.create(articolo=article, codice_lotto="INV260913-01", tipo="PRODUZIONE")
         self.session = model("produzione", "SessioneProduzioneSemplificata").objects.create(
-            tipo="INVASETTAMENTO", stato="CHIUSA", ricetta=recipe, lotto_codice=self.lot.codice_lotto,
-            lotto_prodotto=self.lot, aperta_da=user, chiusa_da=user, chiusa_il=timezone.now(), quantita_finale_kg=138,
+            tipo="INVASETTAMENTO", stato="CHIUSA", ricetta=recipe,
+            lotto=self.lot, aperta_da=user, chiusa_da=user, chiusa_il=timezone.now(), quantita_finale_kg=138,
         )
         model("produzione", "RiepilogoSessioneSemplificata").objects.create(
             sessione=self.session, vasetti_buoni=600, peso_netto_g=230, registrato_da=user,

@@ -97,7 +97,7 @@ class OpenFillingForm(forms.Form):
             tipo="ROBOQBO", stato__in=["APERTA", "CHIUSA"],
         ).exclude(pk__in=SessioneProduzioneSemplificata.objects.exclude(
             stato="ANNULLATA"
-        ).filter(lotto_origine__isnull=False).values("lotto_origine_id")).select_related("ricetta__articolo")
+        ).filter(lotto_origine__isnull=False).values("lotto_origine_id")).select_related("ricetta__articolo", "lotto")
 
 
 class OpenLabelingForm(forms.Form):
@@ -109,9 +109,9 @@ class OpenLabelingForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["lotto_origine"].queryset = SessioneProduzioneSemplificata.objects.filter(
-            tipo="INVASETTAMENTO", stato="CHIUSA", lotto_prodotto__giacenze__quantita__gt=0,
+            tipo="INVASETTAMENTO", stato="CHIUSA", lotto__giacenze__quantita__gt=0,
         ).select_related(
-            "ricetta__articolo", "lotto_prodotto"
+            "ricetta__articolo", "lotto"
         ).distinct()
 
 
@@ -122,10 +122,10 @@ class OpenPackagingForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         candidates = SessioneProduzioneSemplificata.objects.filter(
-            tipo="ETICHETTATURA", stato="CHIUSA", lotto_prodotto__giacenze__quantita__gt=0,
-            lotto_prodotto__confezionamento_verificato=True,
-        ).exclude(lotto_prodotto__stato_confezionamento="CONFEZIONATO").select_related(
-            "ricetta__articolo", "lotto_prodotto"
+            tipo="ETICHETTATURA", stato="CHIUSA", lotto__giacenze__quantita__gt=0,
+            lotto__confezionamento_verificato=True,
+        ).exclude(lotto__stato_confezionamento="CONFEZIONATO").select_related(
+            "ricetta__articolo", "lotto"
         ).distinct()
         self.fields["lotto_origine"].queryset = candidates
 
@@ -363,9 +363,9 @@ class SimpleNCActionForm(forms.Form):
 
     def __init__(self, *args, case, **kwargs):
         super().__init__(*args, **kwargs)
-        if case.sessione.lotto_prodotto_id:
+        if case.sessione.lotto_id:
             self.fields["origine_stock"].queryset = Giacenza.objects.filter(
-                lotto_id=case.sessione.lotto_prodotto_id, quantita__gt=0, ubicazione__attiva=True,
+                lotto_id=case.sessione.lotto_id, quantita__gt=0, ubicazione__attiva=True,
             ).select_related("lotto__articolo", "ubicazione").order_by("ubicazione__codice", "scaffale", "piano")
         self.fields["origine_stock"].label_from_instance = stock_label
         for name in ("origine_stock", "quantita"):
@@ -497,7 +497,7 @@ class LabelingSummaryForm(forms.Form):
 
     def __init__(self, *args, session, **kwargs):
         super().__init__(*args, **kwargs)
-        source_lot = session.lotto_origine.lotto_prodotto
+        source_lot = session.lotto_origine.lotto
         self.source_lot = source_lot
         self.fields["lotto_origine_display"].initial = (
             f"{source_lot.codice_lotto} · {source_lot.articolo.codice} — {source_lot.articolo.descrizione}"
@@ -530,7 +530,7 @@ class PackagingSummaryForm(forms.Form):
 
     def __init__(self, *args, session, **kwargs):
         super().__init__(*args, **kwargs)
-        lot = session.lotto_origine.lotto_prodotto
+        lot = session.lotto_origine.lotto
         from django.db.models import F
         self.fields["giacenza"].queryset = Giacenza.objects.filter(
             lotto=lot, ubicazione__attiva=True, quantita__gt=F("quantita_confezionata")

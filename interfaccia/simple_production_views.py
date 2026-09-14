@@ -30,7 +30,7 @@ from .views import permitted
 @permitted("produzione.view_sessioneproduzionesemplificata")
 def sessions(request):
     rows = list(SessioneProduzioneSemplificata.objects.select_related(
-        "postazione__risorsa", "ricetta__articolo", "lotto_origine"
+        "postazione__risorsa", "ricetta__articolo", "lotto", "lotto_origine__lotto"
     ))
     definitions = [
         (1, "SEMILAVORATO", "Semilavorati", "SLV", "Prelievo materie prime e produzione del semilavorato.", "ui:simple_open_semifinished"),
@@ -130,7 +130,9 @@ def _available_stock_options(article):
 
 @permitted("produzione.view_sessioneproduzionesemplificata")
 def session(request, pk):
-    obj = get_object_or_404(SessioneProduzioneSemplificata.objects.select_related("postazione__risorsa", "ricetta__articolo", "lotto_origine"), pk=pk)
+    obj = get_object_or_404(SessioneProduzioneSemplificata.objects.select_related(
+        "postazione__risorsa", "ricetta__articolo", "lotto", "lotto_origine__lotto"
+    ), pk=pk)
     controls = list(obj.controlli.prefetch_related("associazioni_batch__batch"))
     ncs = list(obj.non_conformita_semplificate.select_related("controllo"))
     nonconforming_control_ids = {control.pk for control in controls if control.esito == "NC"}
@@ -194,8 +196,8 @@ def session(request, pk):
     batch_formset = None
     displayed_controls = controls
     labeling_remaining = None
-    if obj.tipo == "ETICHETTATURA" and obj.lotto_origine.lotto_prodotto_id:
-        labeling_remaining = obj.lotto_origine.lotto_prodotto.giacenze.filter(
+    if obj.tipo == "ETICHETTATURA" and obj.lotto_origine.lotto_id:
+        labeling_remaining = obj.lotto_origine.lotto.giacenze.filter(
             quantita__gt=0
         ).aggregate(totale=Sum("quantita"))["totale"] or 0
     if obj.tipo == "ROBOQBO" and obj.stato == "APERTA":

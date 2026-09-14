@@ -44,8 +44,11 @@ def reset_models(include_operations=False):
         remaining.update(apps.get_model(label) for label in OPERATIONAL_LABELS)
     ordered = []
     while remaining:
+        # Una relazione verso lo stesso modello non cambia l'ordine tra le
+        # tabelle: tutte le righe vengono eliminate dalla stessa DELETE.
         parents = {field.related_model for model in remaining for field in model._meta.fields
-                   if field.is_relation and field.related_model in remaining}
+                   if field.is_relation and field.related_model in remaining
+                   and field.related_model is not model}
         leaves = sorted(remaining - parents, key=lambda model: model._meta.label)
         if not leaves:
             raise ValidationError("Dipendenze circolari: reset non eseguibile senza violare i vincoli.")

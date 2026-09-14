@@ -153,11 +153,19 @@ class PackagingComponentTests(TestCase):
         self.pack()
         payload = create_backup()
         payload["format"] = "MIRA_BACKUP_V1"
+        lot_codes = {
+            str(row["pk"]): row["fields"]["codice_lotto"]
+            for row in payload["records"] if row["model"] == "magazzino.lotto"
+        }
         for row in payload["records"]:
             field = {"magazzino.giacenza": "quantita_confezionata", "magazzino.lotto": "confezionamento_verificato",
                      "magazzino.movimento": "componente", "produzione.sessioneproduzionesemplificata": "confezionamento_giacenza"}.get(row["model"])
             if field:
                 row["fields"].pop(field)
+            if row["model"] == "produzione.sessioneproduzionesemplificata":
+                lot_id = row["fields"].pop("lotto")
+                row["fields"]["lotto_codice"] = lot_codes[str(lot_id)]
+                row["fields"]["lotto_prodotto"] = None if row["fields"]["tipo"] == "CONFEZIONAMENTO" else lot_id
         upgraded = read_backup(json.dumps(payload).encode())
         lot = next(row for row in upgraded["records"] if row["model"] == "magazzino.lotto")
         self.assertFalse(lot["fields"]["confezionamento_verificato"])

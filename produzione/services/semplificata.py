@@ -27,6 +27,41 @@ def _record(record):
 
 class ProduzioneSemplificataService:
     @staticmethod
+    def _crea_lotto_pianificato(*, tipo, ricetta, codice):
+        from magazzino.models import Lotto
+
+        stato_prodotto = Lotto.StatoProdotto.GENERICO
+        stato_confezionamento = Lotto.StatoConfezionamento.NON_APPLICABILE
+        if tipo == "INVASETTAMENTO":
+            stato_prodotto = Lotto.StatoProdotto.INVASETTATO
+        elif tipo == "ETICHETTATURA":
+            stato_prodotto = Lotto.StatoProdotto.PRODOTTO_FINITO
+            stato_confezionamento = Lotto.StatoConfezionamento.DA_CONFEZIONARE
+        return Lotto.objects.create(
+            articolo=ricetta.articolo,
+            codice_lotto=codice,
+            tipo=Lotto.Tipo.PRODUZIONE,
+            stato_prodotto=stato_prodotto,
+            stato_confezionamento=stato_confezionamento,
+            data_produzione=timezone.localdate(),
+            note=f"Lotto pianificato per la lavorazione {codice}",
+        )
+
+    @staticmethod
+    def _completa_lotto(lotto, *, data_scadenza=None):
+        """Completa i dati del lotto già creato in pianificazione."""
+        from django.db import models
+
+        fields = []
+        if data_scadenza is not None:
+            lotto.data_scadenza = data_scadenza
+            fields.append("data_scadenza")
+        if fields:
+            lotto.full_clean()
+            models.Model.save(lotto, force_update=True, update_fields=fields)
+        return lotto
+
+    @staticmethod
     def _consuma_giacenze(*, actor, sessione, giacenze, quantita, note):
         from anagrafiche.models import CategoriaArticolo
         from magazzino.models import Movimento
@@ -70,12 +105,7 @@ class ProduzioneSemplificataService:
         day = giorno or timezone.localdate()
         if tipo == "SEMILAVORATO":
             stem = f"SLV{day:%y%m%d}"
-            # Si considera sia lo storico delle sessioni sia quello dei lotti: anche dopo
-            # pulizie parziali del DB il progressivo non può ripartire da 01.
-            codes = list(SessioneProduzioneSemplificata.objects.filter(
-                tipo=tipo, ricetta__articolo=ricetta.articolo
-            ).values_list("lotto_codice", flat=True))
-            codes.extend(Lotto.objects.filter(
+            codes = list(Lotto.objects.filter(
                 articolo=ricetta.articolo, tipo=Lotto.Tipo.PRODUZIONE
             ).values_list("codice_lotto", flat=True))
             pattern = re.compile(rf"^{re.escape(stem)}-(\d+)$")
@@ -89,9 +119,10 @@ class ProduzioneSemplificataService:
 
         if tipo == "ETICHETTATURA":
             stem = f"{day:%y%m%d}"
-            used = set(SessioneProduzioneSemplificata.objects.filter(
-                tipo=tipo, ricetta__articolo=ricetta.articolo, lotto_codice__startswith=stem,
-            ).values_list("lotto_codice", flat=True))
+            used = set(Lotto.objects.filter(
+                articolo=ricetta.articolo, tipo=Lotto.Tipo.PRODUZIONE,
+                codice_lotto__startswith=stem,
+            ).values_list("codice_lotto", flat=True))
             if stem not in used:
                 return stem
             number = 1
@@ -106,9 +137,15 @@ class ProduzioneSemplificataService:
 
         prefix = {"ROBOQBO": "RBQB", "INVASETTAMENTO": "INV"}[tipo]
         stem = f"{prefix}{day:%y%m%d}"
-        number = SessioneProduzioneSemplificata.objects.filter(
-            tipo=tipo, ricetta__articolo=ricetta.articolo, lotto_codice__startswith=f"{stem}-"
-        ).count() + 1
+        codes = Lotto.objects.filter(
+            articolo=ricetta.articolo, tipo=Lotto.Tipo.PRODUZIONE,
+            codice_lotto__startswith=f"{stem}-",
+        ).values_list("codice_lotto", flat=True)
+        pattern = re.compile(rf"^{re.escape(stem)}-(\d+)$")
+        used = {int(match.group(1)) for code in codes if (match := pattern.fullmatch(code))}
+        number = 1
+        while number in used:
+            number += 1
         return f"{stem}-{number:02d}"
 
     @classmethod
@@ -120,9 +157,11 @@ class ProduzioneSemplificataService:
         ricetta = Ricetta.objects.select_for_update().get(pk=ricetta.pk)
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="SEMILAVORATO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo Semilavorati ha già una sessione aperta.")
+        code = cls._code(tipo="SEMILAVORATO", ricetta=ricetta)
+        lot = cls._crea_lotto_pianificato(tipo="SEMILAVORATO", ricetta=ricetta, codice=code)
         return _record(SessioneProduzioneSemplificata(
             tipo="SEMILAVORATO", postazione=None, ricetta=ricetta,
-            lotto_codice=cls._code(tipo="SEMILAVORATO", ricetta=ricetta),
+            lotto=lot,
             quantita_prevista_kg=None, numero_batch_previsti=numero_batch_previsti,
             numero_lavorazioni_previste=numero_batch_previsti,
             aperta_da=actor, note=note,
@@ -137,9 +176,11 @@ class ProduzioneSemplificataService:
         ricetta = Ricetta.objects.select_for_update().get(pk=ricetta.pk)
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="ROBOQBO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo RoboQbo ha già una sessione aperta.")
+        code = cls._code(tipo="ROBOQBO", ricetta=ricetta)
+        lot = cls._crea_lotto_pianificato(tipo="ROBOQBO", ricetta=ricetta, codice=code)
         return _record(SessioneProduzioneSemplificata(
             tipo="ROBOQBO", postazione=None, ricetta=ricetta,
-            lotto_codice=cls._code(tipo="ROBOQBO", ricetta=ricetta),
+            lotto=lot,
             numero_batch_previsti=numero_batch_previsti, aperta_da=actor, note=note,
         ))
 
@@ -159,9 +200,11 @@ class ProduzioneSemplificataService:
             raise ValidationError("Confermare la pulizia e igienizzazione di vasetti e capsule.")
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="INVASETTAMENTO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo Invasettamento ha già una sessione aperta.")
+        code = cls._code(tipo="INVASETTAMENTO", ricetta=source.ricetta)
+        lot = cls._crea_lotto_pianificato(tipo="INVASETTAMENTO", ricetta=source.ricetta, codice=code)
         return _record(SessioneProduzioneSemplificata(
             tipo="INVASETTAMENTO", postazione=None, ricetta=source.ricetta,
-            lotto_codice=cls._code(tipo="INVASETTAMENTO", ricetta=source.ricetta),
+            lotto=lot,
             lotto_origine=source, igienizzazione_confermata_il=timezone.now(), aperta_da=actor, note=note,
         ))
 
@@ -171,15 +214,17 @@ class ProduzioneSemplificataService:
         require_permission(actor, "can_execute_production")
         business_mutex()
         source = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=lotto_origine.pk)
-        if source.tipo != "INVASETTAMENTO" or source.stato != "CHIUSA" or not source.lotto_prodotto_id:
+        if source.tipo != "INVASETTAMENTO" or source.stato != "CHIUSA":
             raise ValidationError("Selezionare un lotto invasettato chiuso e presente in magazzino.")
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(
             tipo="ETICHETTATURA", stato__in=["PIANIFICATA", "APERTA"]
         ).exists():
             raise ValidationError("Il modulo Etichettatura ha già una sessione aperta.")
+        code = cls._code(tipo="ETICHETTATURA", ricetta=source.ricetta)
+        lot = cls._crea_lotto_pianificato(tipo="ETICHETTATURA", ricetta=source.ricetta, codice=code)
         return _record(SessioneProduzioneSemplificata(
             tipo="ETICHETTATURA", postazione=None, ricetta=source.ricetta,
-            lotto_codice=cls._code(tipo="ETICHETTATURA", ricetta=source.ricetta),
+            lotto=lot,
             lotto_origine=source, aperta_da=actor, note=note,
         ))
 
@@ -189,16 +234,16 @@ class ProduzioneSemplificataService:
         from magazzino.models import Lotto
         require_permission(actor, "can_execute_production")
         business_mutex()
-        source = SessioneProduzioneSemplificata.objects.select_for_update().select_related("lotto_prodotto").get(pk=lotto_origine.pk)
-        if source.tipo != "ETICHETTATURA" or source.stato != "CHIUSA" or not source.lotto_prodotto_id:
+        source = SessioneProduzioneSemplificata.objects.select_for_update().select_related("lotto").get(pk=lotto_origine.pk)
+        if source.tipo != "ETICHETTATURA" or source.stato != "CHIUSA":
             raise ValidationError("Selezionare un lotto etichettato chiuso.")
         from .packaging_availability import packaging_availability
-        if packaging_availability(source.lotto_prodotto, source.quantita_finale_kg)[1] <= 0:
+        if packaging_availability(source.lotto, source.quantita_finale_kg)[1] <= 0:
             raise ValidationError("Il lotto non ha quantità non confezionate disponibili o richiede verifica storica.")
         if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="CONFEZIONAMENTO", stato__in=["PIANIFICATA", "APERTA"]).exists():
             raise ValidationError("Il modulo Confezionamento ha già una sessione aperta.")
         return _record(SessioneProduzioneSemplificata(
-            tipo="CONFEZIONAMENTO", ricetta=source.ricetta, lotto_codice=source.lotto_codice,
+            tipo="CONFEZIONAMENTO", ricetta=source.ricetta, lotto=source.lotto,
             lotto_origine=source, aperta_da=actor, note=note,
         ))
 
@@ -341,7 +386,7 @@ class ProduzioneSemplificataService:
             from qualita.nc_protections import _movement_for_nc
             if not origine_stock or not quantita:
                 raise ValidationError("Per lo scarto indicare posizione e quantità.")
-            if not nc.sessione.lotto_prodotto_id or origine_stock.lotto_id != nc.sessione.lotto_prodotto_id:
+            if origine_stock.lotto_id != nc.sessione.lotto_id:
                 raise ValidationError("La posizione deve contenere il lotto prodotto collegato alla NC.")
             source = Position(origine_stock.ubicazione_id, origine_stock.scaffale, origine_stock.piano)
             with _movement_for_nc(-nc.pk, Movimento.Tipo.SCARTO):
@@ -403,7 +448,7 @@ class ProduzioneSemplificataService:
     @transaction.atomic
     def chiudi_semilavorato(*, actor, sessione, quantita_finale_kg, data_scadenza, destinazione,
                             moca_giacenza, moca_quantita):
-        from magazzino.models import Lotto, Movimento
+        from magazzino.models import Movimento
         from magazzino.services import MovementService
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
@@ -411,15 +456,15 @@ class ProduzioneSemplificataService:
             raise ValidationError("La sessione Semilavorati non è aperta.")
         ProduzioneSemplificataService._consuma_giacenze(
             actor=actor, sessione=current, giacenze=moca_giacenza, quantita=moca_quantita,
-            note=f"MOCA utilizzato nella chiusura {current.lotto_codice}",
+            note=f"MOCA utilizzato nella chiusura {current.lotto.codice_lotto}",
         )
-        lot = Lotto.objects.create(articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
-            tipo=Lotto.Tipo.PRODUZIONE, data_produzione=timezone.localdate(),
-            data_scadenza=data_scadenza, note=f"Prodotto da {current.lotto_codice}")
+        lot = ProduzioneSemplificataService._completa_lotto(
+            current.lotto, data_scadenza=data_scadenza,
+        )
         MovementService.register(actor=actor, lotto=lot, tipo=Movimento.Tipo.PRODUZIONE,
-            quantita=quantita_finale_kg, destinazione=destinazione, note=f"Chiusura {current.lotto_codice}",
+            quantita=quantita_finale_kg, destinazione=destinazione, note=f"Chiusura {current.lotto.codice_lotto}",
             sessione_semplificata=current)
-        current.lotto_prodotto, current.quantita_finale_kg = lot, quantita_finale_kg
+        current.quantita_finale_kg = quantita_finale_kg
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         return _record(current)
 
@@ -428,7 +473,7 @@ class ProduzioneSemplificataService:
     def chiudi_invasettamento(*, actor, sessione, vasetti_buoni, vasetti_scartati,
                               vasetti_quarantena, capsule_difettose, peso_netto_g,
                               vasetti_giacenza, capsule_giacenza, destinazione):
-        from magazzino.models import Lotto, Movimento
+        from magazzino.models import Movimento
         from magazzino.services import MovementService
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
@@ -437,24 +482,19 @@ class ProduzioneSemplificataService:
         vasetti_totali = vasetti_buoni + vasetti_scartati + vasetti_quarantena
         ProduzioneSemplificataService._consuma_giacenze(
             actor=actor, sessione=current, giacenze=vasetti_giacenza, quantita=vasetti_totali,
-            note=f"Vasetti utilizzati nella chiusura {current.lotto_codice}",
+            note=f"Vasetti utilizzati nella chiusura {current.lotto.codice_lotto}",
         )
         ProduzioneSemplificataService._consuma_giacenze(
             actor=actor, sessione=current, giacenze=capsule_giacenza,
             quantita=vasetti_totali + capsule_difettose,
-            note=f"Capsule utilizzate nella chiusura {current.lotto_codice}",
+            note=f"Capsule utilizzate nella chiusura {current.lotto.codice_lotto}",
         )
         summary = _record(RiepilogoSessioneSemplificata(
             sessione=current, vasetti_buoni=vasetti_buoni, vasetti_scartati=vasetti_scartati,
             vasetti_quarantena=vasetti_quarantena, capsule_difettose=capsule_difettose,
             peso_netto_g=peso_netto_g, registrato_da=actor,
         ))
-        lot = Lotto.objects.create(
-            articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
-            tipo=Lotto.Tipo.PRODUZIONE, stato_prodotto=Lotto.StatoProdotto.INVASETTATO,
-            data_produzione=timezone.localdate(), data_scadenza=None,
-            note=f"Prodotto dall'invasettamento {current.lotto_codice}",
-        )
+        lot = current.lotto
         quantita_prodotta = (
             Decimal(summary.vasetti_buoni)
             if current.ricetta.articolo.unita_misura == "PZ"
@@ -464,9 +504,8 @@ class ProduzioneSemplificataService:
             MovementService.register(
                 actor=actor, lotto=lot, tipo=Movimento.Tipo.PRODUZIONE,
                 quantita=quantita_prodotta, destinazione=destinazione,
-                note=f"Chiusura invasettamento {current.lotto_codice}", sessione_semplificata=current,
+                note=f"Chiusura invasettamento {current.lotto.codice_lotto}", sessione_semplificata=current,
             )
-        current.lotto_prodotto = lot
         current.quantita_finale_kg = quantita_prodotta
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         _record(current)
@@ -476,15 +515,15 @@ class ProduzioneSemplificataService:
     @transaction.atomic
     def chiudi_etichettatura(*, actor, sessione, quantita_finale_kg,
                              data_scadenza, destinazione):
-        from magazzino.models import Giacenza, Lotto, Movimento
+        from magazzino.models import Giacenza, Movimento
         from magazzino.services import MovementService, Position
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().select_related(
-            "lotto_origine__lotto_prodotto", "ricetta__articolo"
+            "lotto", "lotto_origine__lotto", "ricetta__articolo"
         ).get(pk=sessione.pk)
         if current.tipo != "ETICHETTATURA" or current.stato != "APERTA":
             raise ValidationError("La sessione di etichettatura non è aperta.")
-        source_lot = current.lotto_origine.lotto_prodotto
+        source_lot = current.lotto_origine.lotto
         stocks = list(Giacenza.objects.select_for_update().filter(
             lotto=source_lot, quantita__gt=0, ubicazione__attiva=True,
         ).select_related("ubicazione").order_by("ubicazione__codice", "scaffale", "piano", "pk"))
@@ -498,7 +537,7 @@ class ProduzioneSemplificataService:
             movement = MovementService.register(
                 actor=actor, lotto=source_lot, tipo=Movimento.Tipo.CONSUMO, quantita=used,
                 origine=Position(stock.ubicazione_id, stock.scaffale, stock.piano),
-                note=f"Etichettatura nel lotto {current.lotto_codice}",
+                note=f"Etichettatura nel lotto {current.lotto.codice_lotto}",
             )
             _record(PrelievoSessioneSemplificata(
                 sessione=current, lotto=source_lot, movimento=movement,
@@ -506,19 +545,15 @@ class ProduzioneSemplificataService:
                 note="Lotto invasettato destinato all'etichettatura",
             ))
             remaining -= used
-        lot = Lotto.objects.create(
-            articolo=current.ricetta.articolo, codice_lotto=current.lotto_codice,
-            tipo=Lotto.Tipo.PRODUZIONE, stato_prodotto=Lotto.StatoProdotto.PRODOTTO_FINITO,
-            stato_confezionamento=Lotto.StatoConfezionamento.DA_CONFEZIONARE,
-            data_produzione=timezone.localdate(), data_scadenza=data_scadenza,
-            note=f"Prodotto dall'etichettatura del lotto {source_lot.codice_lotto}",
+        lot = ProduzioneSemplificataService._completa_lotto(
+            current.lotto, data_scadenza=data_scadenza,
         )
         MovementService.register(
             actor=actor, lotto=lot, tipo=Movimento.Tipo.PRODUZIONE,
             quantita=quantita_finale_kg, destinazione=destinazione,
-            note=f"Chiusura etichettatura {current.lotto_codice}", sessione_semplificata=current,
+            note=f"Chiusura etichettatura {current.lotto.codice_lotto}", sessione_semplificata=current,
         )
-        current.lotto_prodotto, current.quantita_finale_kg = lot, quantita_finale_kg
+        current.quantita_finale_kg = quantita_finale_kg
         current.stato, current.chiusa_da, current.chiusa_il = "CHIUSA", actor, timezone.now()
         return _record(current)
 
@@ -528,11 +563,11 @@ class ProduzioneSemplificataService:
         from magazzino.models import Lotto
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().select_related(
-            "lotto_origine__lotto_prodotto"
+            "lotto"
         ).get(pk=sessione.pk)
         if current.tipo != "CONFEZIONAMENTO" or current.stato != "APERTA":
             raise ValidationError("La sessione di confezionamento non è aperta.")
-        lot = Lotto.objects.select_for_update().get(pk=current.lotto_origine.lotto_prodotto_id)
+        lot = Lotto.objects.select_for_update().get(pk=current.lotto_id)
         total = current.lotto_origine.quantita_finale_kg or Decimal("0")
         from .packaging_availability import packaging_availability
         from magazzino.services.types import quantity

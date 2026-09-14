@@ -14,12 +14,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         sessions = SessioneProduzioneSemplificata.objects.filter(
-            tipo="INVASETTAMENTO", stato="CHIUSA", lotto_prodotto__articolo__unita_misura="PZ",
-        ).select_related("lotto_prodotto__articolo", "riepilogo_finale")
+            tipo="INVASETTAMENTO", stato="CHIUSA", lotto__articolo__unita_misura="PZ",
+        ).select_related("lotto__articolo", "riepilogo_finale")
         checked = issues = 0
         for session in sessions:
             checked += 1
-            lot = session.lotto_prodotto
+            lot = session.lotto
             movements = list(Movimento.objects.filter(lotto=lot))
             stocks = list(Giacenza.objects.filter(lotto=lot))
             records = json.loads(serializers.serialize("json", [*movements, *stocks]))

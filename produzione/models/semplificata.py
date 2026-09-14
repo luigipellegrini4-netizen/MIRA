@@ -26,15 +26,17 @@ class SessioneProduzioneSemplificata(ValidatedModel):
     tipo = models.CharField(max_length=20, choices=Tipo.choices)
     postazione = models.ForeignKey("produzione.PostazioneLinea", null=True, blank=True, on_delete=models.PROTECT, related_name="sessioni_semplificate")
     ricetta = models.ForeignKey("produzione.Ricetta", on_delete=models.PROTECT, related_name="sessioni_semplificate")
-    # Il codice è univoco nel perimetro dell'articolo, ricavato dalla ricetta.
-    # Articoli diversi possono quindi avere lo stesso progressivo giornaliero.
-    lotto_codice = models.CharField(max_length=100)
+    # Il lotto nasce con la pianificazione. Finché non viene chiusa la sessione
+    # non ha movimenti né giacenze, ma resta l'unica fonte del codice lotto.
+    lotto = models.ForeignKey(
+        "magazzino.Lotto", on_delete=models.PROTECT,
+        related_name="sessioni_semplificate",
+    )
     lotto_origine = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="sessioni_invasettamento")
     stato = models.CharField(max_length=11, choices=Stato.choices, default=Stato.PIANIFICATA)
     numero_batch_previsti = models.PositiveIntegerField(null=True, blank=True)
     quantita_prevista_kg = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     numero_lavorazioni_previste = models.PositiveIntegerField(null=True, blank=True)
-    lotto_prodotto = models.OneToOneField("magazzino.Lotto", null=True, blank=True, on_delete=models.PROTECT, related_name="sessione_semplificata_origine")
     quantita_finale_kg = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
     confezionamento_giacenza = models.ForeignKey("magazzino.Giacenza", null=True, blank=True, on_delete=models.PROTECT, related_name="confezionamenti")
     igienizzazione_confermata_il = models.DateTimeField(null=True, blank=True)
@@ -56,7 +58,7 @@ class SessioneProduzioneSemplificata(ValidatedModel):
         ]
 
     def __str__(self):
-        return self.lotto_codice
+        return self.lotto.codice_lotto
 
     @property
     def articolo(self):
@@ -88,10 +90,8 @@ class SessioneProduzioneSemplificata(ValidatedModel):
 
     def clean(self):
         super().clean()
-        if self.tipo != self.Tipo.CONFEZIONAMENTO and self.ricetta_id and self.lotto_codice and type(self).objects.filter(
-            ricetta__articolo=self.ricetta.articolo, lotto_codice=self.lotto_codice
-        ).exclude(pk=self.pk).exists():
-            raise ValidationError("Codice lotto già utilizzato per questo articolo.")
+        if self.lotto_id and self.ricetta_id and self.lotto.articolo_id != self.ricetta.articolo_id:
+            raise ValidationError("Il lotto della sessione deve appartenere all'articolo della ricetta.")
         if self.tipo == self.Tipo.SEMILAVORATO:
             if self.lotto_origine_id or not self.batch_previsti:
                 raise ValidationError("Il semilavorato richiede il numero di batch previsti, senza lotto di origine.")
@@ -119,7 +119,7 @@ class SessioneProduzioneSemplificata(ValidatedModel):
         elif self.tipo == self.Tipo.CONFEZIONAMENTO:
             if not self.lotto_origine_id or self.lotto_origine.tipo != self.Tipo.ETICHETTATURA:
                 raise ValidationError("Il confezionamento deve essere collegato a un'etichettatura.")
-            if self.ricetta_id != self.lotto_origine.ricetta_id or self.lotto_codice != self.lotto_origine.lotto_codice:
+            if self.ricetta_id != self.lotto_origine.ricetta_id or self.lotto_id != self.lotto_origine.lotto_id:
                 raise ValidationError("Il confezionamento deve mantenere articolo e codice del lotto etichettato.")
 
 

@@ -10,11 +10,12 @@ def correggi_quantita_invasettate(apps, schema_editor):
     Movimento = apps.get_model("magazzino", "Movimento")
     Giacenza = apps.get_model("magazzino", "Giacenza")
 
+    lot_field = "lotto" if any(field.name == "lotto" for field in Sessione._meta.fields) else "lotto_prodotto"
     sessions = Sessione.objects.filter(
         tipo="INVASETTAMENTO",
         stato="CHIUSA",
-        lotto_prodotto__isnull=False,
         ricetta__articolo__unita_misura="PZ",
+        **{f"{lot_field}__isnull": False},
     )
 
     for session in sessions:
@@ -23,17 +24,18 @@ def correggi_quantita_invasettate(apps, schema_editor):
             continue
         old_quantity = Decimal(summary.vasetti_buoni) * summary.peso_netto_g / Decimal("1000")
         new_quantity = Decimal(summary.vasetti_buoni)
+        lot_id = getattr(session, f"{lot_field}_id")
         production_movements = Movimento.objects.filter(
             sessione_semplificata_id=session.pk,
-            lotto_id=session.lotto_prodotto_id,
+            lotto_id=lot_id,
             tipo="PRODUZIONE",
         )
         if production_movements.count() != 1:
             continue
         movement = production_movements.first()
-        if Movimento.objects.filter(lotto_id=session.lotto_prodotto_id).exclude(pk=movement.pk).exists():
+        if Movimento.objects.filter(lotto_id=lot_id).exclude(pk=movement.pk).exists():
             continue
-        stocks = Giacenza.objects.filter(lotto_id=session.lotto_prodotto_id).order_by("pk")
+        stocks = Giacenza.objects.filter(lotto_id=lot_id).order_by("pk")
         if stocks.count() != 1:
             continue
         first = stocks.first()

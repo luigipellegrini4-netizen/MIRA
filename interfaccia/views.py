@@ -78,7 +78,7 @@ def home(request):
         active = SessioneProduzioneSemplificata.objects.filter(stato="APERTA")
         stats += [("Produzioni in corso", active.count(), "simple_sessions"),
                   ("Da avviare", SessioneProduzioneSemplificata.objects.filter(stato="PIANIFICATA").count(), "simple_sessions")]
-        works = active.select_related("ricetta__articolo")[:6]
+        works = active.select_related("ricetta__articolo", "lotto")[:6]
     if request.user.has_perm("qualita.view_nonconformita"):
         opened = NonConformita.objects.exclude(stato="CHIUSA")
         simple_opened = NonConformitaSessioneSemplificata.objects.exclude(stato="CHIUSA")
@@ -332,12 +332,12 @@ def quality(request):
     query = request.GET.get("q", "").strip()[:150]
     cases = NonConformita.objects.select_related("lotto", "lavorazione").order_by("-numero")
     production_cases = NonConformitaSessioneSemplificata.objects.select_related(
-        "sessione__lotto_prodotto", "sessione__ricetta__articolo"
+        "sessione__lotto", "sessione__ricetta__articolo"
     )
     if query:
         cases = cases.filter(Q(descrizione__icontains=query) | Q(lotto__codice_lotto__icontains=query))
         production_cases = production_cases.filter(
-            Q(descrizione__icontains=query) | Q(sessione__lotto_codice__icontains=query)
+            Q(descrizione__icontains=query) | Q(sessione__lotto__codice_lotto__icontains=query)
             | Q(sessione__ricetta__articolo__descrizione__icontains=query)
         )
     rows = [{
@@ -351,7 +351,7 @@ def quality(request):
         "numero": f"P-{case.pk}", "data": case.aperta_il,
         "descrizione": case.descrizione,
         "origine": f"Produzione · {case.sessione.get_tipo_display()}",
-        "lotto": case.sessione.lotto_prodotto.codice_lotto if case.sessione.lotto_prodotto_id else case.sessione.lotto_codice,
+        "lotto": case.sessione.lotto.codice_lotto,
         "stato": case.stato, "stato_label": case.get_stato_display(),
         "url": reverse("ui:simple_case", args=[case.pk]),
     } for case in production_cases)
@@ -372,7 +372,7 @@ def case_detail(request, pk):
 def simple_case_detail(request, pk):
     case = get_object_or_404(
         NonConformitaSessioneSemplificata.objects.select_related(
-            "sessione__ricetta__articolo", "sessione__lotto_prodotto",
+            "sessione__ricetta__articolo", "sessione__lotto",
             "controllo", "aperta_da", "presa_in_carico_da", "chiusa_da",
         ), pk=pk,
     )

@@ -43,12 +43,12 @@
           <tbody>
             {% for s in group.sessions %}
               <tr class="production-row" data-row-href="{% url 'ui:simple_session' s.pk %}" tabindex="0">
-                <td><strong>{{ s.lotto_codice }}</strong><small>#{{ s.pk }}</small></td>
+                <td><strong>{{ s.lotto.codice_lotto }}</strong><small>#{{ s.pk }}</small></td>
                 <td><strong>{{ s.ricetta.articolo.descrizione }}</strong><small>{{ s.ricetta.articolo.codice }}</small></td>
                 <td>{% if s.lotto_origine %}<a href="{% url 'ui:simple_session' s.lotto_origine_id %}">{{ s.lotto_origine }}</a>{% else %}—{% endif %}</td>
                 <td><span class="pill {{ s.stato }}">{{ s.get_stato_display }}</span></td>
                 <td>{{ s.aperta_il|date:'d/m/Y' }}<small>{{ s.aperta_il|date:'H:i' }}</small></td>
-                <td><a class="session-open-link" href="{% url 'ui:simple_session' s.pk %}" aria-label="Apri {{ s.lotto_codice }}">Apri <span aria-hidden="true">→</span></a></td>
+                <td><a class="session-open-link" href="{% url 'ui:simple_session' s.pk %}" aria-label="Apri {{ s.lotto.codice_lotto }}">Apri <span aria-hidden="true">→</span></a></td>
               </tr>
             {% empty %}
               <tr><td colspan="6" class="empty">Nessuna produzione {{ group.name|lower }} registrata.</td></tr>

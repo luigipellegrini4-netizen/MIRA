@@ -318,16 +318,20 @@ for historical_model in (PianoProduzione, BatchPiano, RevisionePrelievo, RigaPia
 
 @admin.register(SessioneProduzioneSemplificata)
 class SessioneProduzioneSemplificataAdmin(admin.ModelAdmin):
-    list_display = ("lotto_codice", "tipo", "postazione", "ricetta", "lotto_origine", "stato", "aperta_il", "chiusa_il")
+    list_display = ("codice_lotto", "tipo", "postazione", "ricetta", "lotto_origine", "stato", "aperta_il", "chiusa_il")
     list_filter = ("tipo", "stato", "postazione")
-    search_fields = ("lotto_codice", "ricetta__articolo__codice", "ricetta__articolo__descrizione")
+    search_fields = ("lotto__codice_lotto", "ricetta__articolo__codice", "ricetta__articolo__descrizione")
+
+    @admin.display(description="Lotto", ordering="lotto__codice_lotto")
+    def codice_lotto(self, obj):
+        return obj.lotto.codice_lotto
     autocomplete_fields = ("postazione", "ricetta", "lotto_origine", "aperta_da", "chiusa_da")
 
 
 @admin.register(PrelievoSessioneSemplificata)
 class PrelievoSessioneSemplificataAdmin(admin.ModelAdmin):
     list_display = ("sessione", "numero_batch", "lotto", "quantita_kg", "registrato_il")
-    search_fields = ("sessione__lotto_codice", "lotto__codice_lotto", "lotto__articolo__codice")
+    search_fields = ("sessione__lotto__codice_lotto", "lotto__codice_lotto", "lotto__articolo__codice")
     autocomplete_fields = ("sessione", "lotto", "movimento", "registrato_da")
 
 
@@ -335,7 +339,7 @@ class PrelievoSessioneSemplificataAdmin(admin.ModelAdmin):
 class ControlloSessioneSemplificataAdmin(admin.ModelAdmin):
     list_display = ("sessione", "tipo", "numero", "conforme", "registrato_il")
     list_filter = ("tipo",)
-    search_fields = ("sessione__lotto_codice",)
+    search_fields = ("sessione__lotto__codice_lotto",)
 
 
 @admin.register(ConfigurazioneControlloSemplificato)
@@ -348,7 +352,7 @@ class ConfigurazioneControlloSemplificatoAdmin(admin.ModelAdmin):
 @admin.register(AssociazioneTankBatch)
 class AssociazioneTankBatchAdmin(admin.ModelAdmin):
     list_display = ("tank", "batch", "registrato_da", "registrato_il")
-    search_fields = ("tank__sessione__lotto_codice",)
+    search_fields = ("tank__sessione__lotto__codice_lotto",)
 
 
 @admin.register(RiepilogoSessioneSemplificata)
@@ -360,17 +364,17 @@ class RiepilogoSessioneSemplificataAdmin(admin.ModelAdmin):
 class NonConformitaSessioneSemplificataAdmin(admin.ModelAdmin):
     list_display = ("id", "sessione", "controllo", "stato", "aperta_il", "chiusa_il")
     list_filter = ("stato",)
-    search_fields = ("sessione__lotto_codice", "descrizione")
+    search_fields = ("sessione__lotto__codice_lotto", "descrizione")
 
 
 @admin.register(AzioneNCSessioneSemplificata)
 class AzioneNCSessioneSemplificataAdmin(admin.ModelAdmin):
     list_display = ("id", "non_conformita", "tipo", "movimento", "registrata_da", "registrata_il")
-    search_fields = ("non_conformita__sessione__lotto_codice", "descrizione")
+    search_fields = ("non_conformita__sessione__lotto__codice_lotto", "descrizione")
 
 
 @admin.register(VerificaNCSessioneSemplificata)
 class VerificaNCSessioneSemplificataAdmin(admin.ModelAdmin):
     list_display = ("id", "non_conformita", "esito", "verificata_da", "verificata_il")
     list_filter = ("esito",)
-    search_fields = ("non_conformita__sessione__lotto_codice", "descrizione")
+    search_fields = ("non_conformita__sessione__lotto__codice_lotto", "descrizione")

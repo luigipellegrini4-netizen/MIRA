@@ -42,7 +42,7 @@ class GenealogyService:
                 works = set(Lotto.objects.filter(pk__in=frontier).exclude(lavorazione_origine_id=None).values_list("lavorazione_origine_id", flat=True))
                 material_works.update(works)
                 sessions = set(SessioneProduzioneSemplificata.objects.filter(
-                    lotto_prodotto_id__in=frontier
+                    lotto_id__in=frontier
                 ).values_list("pk", flat=True))
                 pending = set(sessions)
                 while pending:
@@ -68,19 +68,18 @@ class GenealogyService:
             ).values_list("sessione_id", flat=True))
             pending = set(sessions)
             while pending:
-                # RoboQbo trasmette il materiale tramite la sessione, senza un Lotto proprio.
                 children = set(SessioneProduzioneSemplificata.objects.filter(
-                    lotto_origine_id__in=pending, lotto_origine__lotto_prodotto__isnull=True,
+                    lotto_origine_id__in=pending, tipo="INVASETTAMENTO",
                 ).exclude(stato="ANNULLATA").values_list("pk", flat=True)) - sessions
                 sessions.update(children)
                 pending = children
             material_sessions.update(sessions)
             # Include le identità preparate anche prima del carico fisico.
             legacy = Lotto.objects.filter(lavorazione_origine_id__in=works).values_list("pk", flat=True)
-            simple = SessioneProduzioneSemplificata.objects.filter(pk__in=sessions).exclude(lotto_prodotto_id=None).values_list("lotto_prodotto_id", flat=True)
+            simple = SessioneProduzioneSemplificata.objects.filter(pk__in=sessions).exclude(lotto_id=None).values_list("lotto_id", flat=True)
             packaged = SessioneProduzioneSemplificata.objects.filter(
-                pk__in=sessions, tipo="CONFEZIONAMENTO", lotto_origine__lotto_prodotto__isnull=False,
-            ).values_list("lotto_origine__lotto_prodotto_id", flat=True)
+                pk__in=sessions, tipo="CONFEZIONAMENTO", lotto_origine__lotto__isnull=False,
+            ).values_list("lotto_origine__lotto_id", flat=True)
             return set(legacy) | set(simple) | set(packaged)
 
         lot_ids, omitted = walk_lots(root.pk, neighbors, max_lotti)
@@ -93,10 +92,10 @@ class GenealogyService:
         work_ids = material_works | treatment_ids
         works = list(Lavorazione.objects.filter(pk__in=work_ids).select_related("tipo_lavorazione", "ricetta").order_by("pk"))
         material_sessions.update(SessioneProduzioneSemplificata.objects.filter(
-            lotto_prodotto_id__in=lot_ids
+            lotto_id__in=lot_ids
         ).values_list("pk", flat=True))
         sessions = list(SessioneProduzioneSemplificata.objects.filter(pk__in=material_sessions)
-            .select_related("ricetta__articolo", "lotto_prodotto", "lotto_origine__lotto_prodotto").order_by("pk"))
+            .select_related("ricetta__articolo", "lotto", "lotto_origine__lotto").order_by("pk"))
 
         inputs = list(InputLavorazione.objects.filter(lavorazione_id__in=material_works, lotto_id__in=lot_ids).order_by("pk"))
         outputs = list(OutputLavorazione.objects.filter(lavorazione_id__in=material_works, lotto_id__in=lot_ids).order_by("pk"))
@@ -135,21 +134,20 @@ class GenealogyService:
         for movement in simple_output_movements:
             output_movements_by_session[movement.sessione_semplificata_id].append(movement.pk)
         for session in sessions:
-            if (session.lotto_origine_id and session.lotto_origine_id in material_sessions
-                    and (not session.lotto_origine.lotto_prodotto_id or session.tipo == "CONFEZIONAMENTO")):
+            if session.lotto_origine_id and session.lotto_origine_id in material_sessions:
                 edges.append({"tipo": "PASSAGGIO_PRODUTTIVO", "da": f"sessione:{session.lotto_origine_id}",
                     "a": f"sessione:{session.pk}", "quantita": None, "movimenti_ids": []})
-            if session.lotto_prodotto_id in lot_ids:
-                edges.append({"tipo": "PRODUZIONE", "da": f"sessione:{session.pk}",
-                    "a": f"lotto:{session.lotto_prodotto_id}", "sessione_id": session.pk,
-                    "quantita": str(session.quantita_finale_kg) if session.quantita_finale_kg is not None else None,
-                    "movimenti_ids": output_movements_by_session[session.pk], "output_registrato": True})
-            elif (session.tipo == "CONFEZIONAMENTO" and session.lotto_origine_id
-                  and session.lotto_origine.lotto_prodotto_id in lot_ids):
+            if session.tipo == "CONFEZIONAMENTO" and session.lotto_id in lot_ids:
                 edges.append({"tipo": "CONFEZIONAMENTO", "da": f"sessione:{session.pk}",
-                    "a": f"lotto:{session.lotto_origine.lotto_prodotto_id}", "sessione_id": session.pk,
+                    "a": f"lotto:{session.lotto_id}", "sessione_id": session.pk,
                     "quantita": str(session.quantita_finale_kg) if session.quantita_finale_kg is not None else None,
-                    "movimenti_ids": [], "output_registrato": True})
+                    "movimenti_ids": [], "output_registrato": session.stato == "CHIUSA"})
+            elif session.lotto_id in lot_ids:
+                edges.append({"tipo": "PRODUZIONE", "da": f"sessione:{session.pk}",
+                    "a": f"lotto:{session.lotto_id}", "sessione_id": session.pk,
+                    "quantita": str(session.quantita_finale_kg) if session.quantita_finale_kg is not None else None,
+                    "movimenti_ids": output_movements_by_session[session.pk],
+                    "output_registrato": session.stato == "CHIUSA"})
 
         # Una destinazione per lotto e documento: non sommare prodotti o unità differenti.
         from vendite.models import RigaVendita
@@ -226,9 +224,9 @@ class GenealogyService:
                 "inizio": iso(w.data_ora_inizio), "fine": iso(w.data_ora_fine),
                 "ruolo": "MATERIALE" if w.pk in material_works else "TRATTAMENTO_UNITA"} for w in works],
             "sessioni_semplificate": [{"id": s.pk, "nodo": f"sessione:{s.pk}",
-                "lotto_codice": s.lotto_codice, "tipo": s.tipo, "stato": s.stato,
+                "lotto_codice": s.lotto.codice_lotto, "tipo": s.tipo, "stato": s.stato,
                 "articolo_id": s.ricetta.articolo_id, "articolo_codice": s.ricetta.articolo.codice,
-                "lotto_prodotto_id": s.lotto_prodotto_id, "aperta_il": iso(s.aperta_il),
+                "lotto_id": s.lotto_id, "aperta_il": iso(s.aperta_il),
                 "chiusa_il": iso(s.chiusa_il)} for s in sessions],
             "legami_materiali": edges,
             "vendite": list(sales.values()),

@@ -28,19 +28,14 @@
 <div class="two-columns space-top">
   <section class="panel panel-body">
     <p class="eyebrow">PRODUZIONE COLLEGATA</p>
-    <h2>{{ case.sessione.lotto_codice }}</h2>
+    <h2>{{ case.sessione.lotto.codice_lotto }}</h2>
     <p>{{ case.sessione.get_tipo_display }} · {{ case.sessione.ricetta.articolo }}</p>
     <a href="{% url 'ui:simple_session' case.sessione_id %}">Apri produzione →</a>
   </section>
   <section class="panel panel-body">
     <p class="eyebrow">LOTTO PRODOTTO</p>
-    {% if case.sessione.lotto_prodotto %}
-      <h2>{{ case.sessione.lotto_prodotto.codice_lotto }}</h2>
-      <a href="{% url 'ui:lot' case.sessione.lotto_prodotto_id %}">Apri tracciabilità →</a>
-    {% else %}
-      <h2>{{ case.sessione.lotto_codice }}</h2>
-      <p class="muted">Il lotto sarà creato alla chiusura della produzione.</p>
-    {% endif %}
+    <h2>{{ case.sessione.lotto.codice_lotto }}</h2>
+    <a href="{% url 'ui:lot' case.sessione.lotto_id %}">Apri tracciabilità →</a>
   </section>
 </div>
 {% if case.controllo %}

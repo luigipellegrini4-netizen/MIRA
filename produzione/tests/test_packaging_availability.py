@@ -25,10 +25,10 @@ class PackagingAvailabilityTests(TestCase):
         self.stock = m("magazzino", "Giacenza").objects.create(lotto=self.lot, ubicazione=location, quantita=600)
         sessions = m("produzione", "SessioneProduzioneSemplificata")
         source = sessions.objects.create(tipo="ETICHETTATURA", stato="CHIUSA", ricetta=recipe,
-            lotto_codice="260913", lotto_prodotto=self.lot, quantita_finale_kg=600,
+            lotto=self.lot, quantita_finale_kg=600,
             aperta_da_id=self.actor.pk, chiusa_da_id=self.actor.pk, chiusa_il=timezone.now())
         session = sessions.objects.create(tipo="CONFEZIONAMENTO", stato="APERTA", ricetta=recipe,
-            lotto_codice="260913", lotto_origine=source, aperta_da_id=self.actor.pk)
+            lotto=self.lot, lotto_origine=source, aperta_da_id=self.actor.pk)
         self.session = SessioneProduzioneSemplificata.objects.get(pk=session.pk)
 
     def close(self, amount):

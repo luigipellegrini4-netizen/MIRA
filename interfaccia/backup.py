@@ -9,7 +9,7 @@ from django.db import connection, transaction, IntegrityError
 from django.utils import timezone
 from .backup_validation import validate_records
 
-FORMAT = "MIRA_BACKUP_V2"
+FORMAT = "MIRA_BACKUP_V3"
 EXCLUDED = {"migrations.Migration"}
 
 
@@ -34,10 +34,14 @@ def read_backup(raw):
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise ValidationError("Il file non è un JSON MIRA valido.") from None
     expected = [m._meta.label for m in backup_models()]
-    if not isinstance(payload, dict) or payload.get("format") not in {FORMAT, "MIRA_BACKUP_V1"} or payload.get("models") != expected:
+    if not isinstance(payload, dict) or payload.get("format") not in {FORMAT, "MIRA_BACKUP_V1", "MIRA_BACKUP_V2"} or payload.get("models") != expected:
         raise ValidationError("Il backup non è compatibile con questa versione di MIRA.")
     if not isinstance(payload.get("records"), list) or not isinstance(payload.get("counts"), dict):
         raise ValidationError("Struttura del backup incompleta.")
+    if payload["format"] == "MIRA_BACKUP_V1":
+        upgrade_packaging_backup(payload)
+    if payload["format"] == "MIRA_BACKUP_V2":
+        upgrade_session_lot_backup(payload)
     allowed = {model._meta.label_lower for model in backup_models()}
     actual = {label: 0 for label in expected}
     for record in payload["records"]:
@@ -48,8 +52,6 @@ def read_backup(raw):
         actual[model._meta.label] += 1
     if actual != payload["counts"]:
         raise ValidationError("Il numero dei record non corrisponde all’indice del backup.")
-    if payload["format"] == "MIRA_BACKUP_V1":
-        upgrade_packaging_backup(payload)
     try:
         validate_records(payload["records"])
     except (ValueError, TypeError, KeyError) as exc:
@@ -84,6 +86,76 @@ def upgrade_packaging_backup(payload):
         elif record["model"] == "magazzino.movimento":
             lot = lots.get(str(fields.get("lotto")), {})
             fields.setdefault("componente", "SFUSO" if lot.get("stato_prodotto") == "PRODOTTO_FINITO" and lot.get("confezionamento_verificato") else "")
+    payload["format"] = "MIRA_BACKUP_V2"
+
+
+def upgrade_session_lot_backup(payload):
+    """Normalizza i backup nei quali il codice era duplicato nella sessione."""
+    records = payload["records"]
+    session_records = [r for r in records if r["model"] == "produzione.sessioneproduzionesemplificata"]
+    sessions = {str(r["pk"]): r["fields"] for r in session_records}
+    recipes = {
+        str(r["pk"]): r["fields"] for r in records
+        if r["model"] == "produzione.ricetta"
+    }
+    lot_records = [r for r in records if r["model"] == "magazzino.lotto"]
+    lots_by_key = {
+        (str(r["fields"].get("articolo")), r["fields"].get("codice_lotto"), r["fields"].get("tipo")): r["pk"]
+        for r in lot_records
+    }
+    next_lot_pk = max((int(r["pk"]) for r in lot_records), default=0) + 1
+
+    for record in session_records:
+        fields = record["fields"]
+        old_lot = fields.pop("lotto_prodotto", None)
+        code = fields.pop("lotto_codice", "")
+        if old_lot:
+            fields["lotto"] = old_lot
+            continue
+        if fields.get("tipo") == "CONFEZIONAMENTO":
+            continue
+        recipe = recipes.get(str(fields.get("ricetta")), {})
+        article_id = recipe.get("articolo")
+        key = (str(article_id), code, "PRODUZIONE")
+        lot_pk = lots_by_key.get(key)
+        if lot_pk is None:
+            product_state = "INVASETTATO" if fields.get("tipo") == "INVASETTAMENTO" else "GENERICO"
+            packaging_state = "NON_APPLICABILE"
+            if fields.get("tipo") == "ETICHETTATURA":
+                product_state = "PRODOTTO_FINITO"
+                packaging_state = "DA_CONFEZIONARE"
+            lot_pk = next_lot_pk
+            next_lot_pk += 1
+            new_record = {
+                "model": "magazzino.lotto",
+                "pk": lot_pk,
+                "fields": {
+                    "articolo": article_id,
+                    "codice_lotto": code,
+                    "tipo": "PRODUZIONE",
+                    "stato_prodotto": product_state,
+                    "stato_confezionamento": packaging_state,
+                    "quantita_confezionata": "0",
+                    "confezionamento_verificato": True,
+                    "fornitore": None,
+                    "data_produzione": (fields.get("aperta_il") or "")[:10] or None,
+                    "data_scadenza": None,
+                    "note": f"Lotto recuperato dal backup per la produzione {code}",
+                    "lavorazione_origine": None,
+                },
+            }
+            records.append(new_record)
+            lot_records.append(new_record)
+            lots_by_key[key] = lot_pk
+        fields["lotto"] = lot_pk
+
+    for fields in sessions.values():
+        if fields.get("tipo") != "CONFEZIONAMENTO" or fields.get("lotto"):
+            continue
+        source = sessions.get(str(fields.get("lotto_origine")), {})
+        fields["lotto"] = source.get("lotto")
+
+    payload["counts"]["magazzino.Lotto"] = len(lot_records)
     payload["format"] = FORMAT
 
 
