@@ -126,5 +126,5 @@ class MovementTests(ServiceFixtures, TestCase):
 
     def test_future_workflows_not_bypassed(self):
         for kind in ("PRODUZIONE", "QUARANTENA", "REINTEGRO", "SCARTO", "VENDITA", "TYPO"):
-            with self.subTest(kind=kind), self.assertRaises(ValidationError):
+            with self.subTest(kind=kind), self.assertRaises((ValidationError, PermissionDenied)):
                 MovementService.register(actor=self.quality, lotto=self.lot, tipo=kind, quantita="1", destinazione=self.position)

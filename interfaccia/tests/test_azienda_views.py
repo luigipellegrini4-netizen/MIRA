@@ -1,3 +1,5 @@
+from unittest import skip
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from magazzino.models import Movimento
@@ -6,6 +8,7 @@ from produzione.services import BatchService, PickingPlanService, ShiftService
 from produzione.tests.test_azienda_flow import AziendaFixture
 
 
+@skip("Interfaccia produttiva storica disattivata; servizi conservati per uso futuro")
 class AziendaViewsTests(AziendaFixture, TestCase):
     def setUp(self):
         super().setUp()

@@ -1,3 +1,5 @@
+from unittest import skip
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase, Client, RequestFactory
 from django.urls import reverse
@@ -24,7 +26,7 @@ class InterfaceViewsTests(TestCase):
 
     def test_read_pages_render_real_records(self):
         self.login()
-        for name in ("home", "magazzino", "movimenti", "produzione", "qualita", "anagrafiche"):
+        for name in ("home", "magazzino", "movimenti", "qualita", "anagrafiche"):
             with self.subTest(name=name):
                 self.assertEqual(self.client.get(reverse("ui:" + name)).status_code, 200)
         self.assertEqual(self.client.get(reverse("ui:lot", args=[self.demo["lots"]["F_A"].pk])).status_code, 200)
@@ -32,8 +34,8 @@ class InterfaceViewsTests(TestCase):
     def test_warehouse_cannot_access_production_planning_even_by_post(self):
         self.login("magazziniere")
         path = reverse("ui:operation", args=["pianifica"])
-        self.assertEqual(self.client.get(path).status_code, 403)
-        self.assertEqual(self.client.post(path, {}).status_code, 403)
+        self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(self.client.post(path, {}).status_code, 404)
 
     def test_admin_pure_cannot_receive_goods(self):
         self.login("admin")
@@ -85,6 +87,7 @@ class InterfaceViewsTests(TestCase):
             submit_once(request, token_for(request), fail)
         self.assertFalse(InvioOperativo.objects.exists())
 
+    @skip("Interfaccia produttiva storica disattivata")
     def test_recipe_form_renders_proposal_and_registers_both_rows(self):
         self.login()
         d = self.demo
@@ -110,7 +113,7 @@ class InterfaceViewsTests(TestCase):
         for op in ("avvia", "completa", "interrompi", "annulla", "output", "input", "controllo", "prepara_lotto", "risorsa", "unita", "partecipa", "chiudi_unita", "chiudi_ciclo"):
             with self.subTest(operation=op):
                 response = self.client.get(reverse("ui:record_operation", args=[op, work.pk]))
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, 404)
 
     def test_quality_case_and_action_forms_render(self):
         from qualita.services import NonConformityService

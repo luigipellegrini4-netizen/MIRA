@@ -1,4 +1,6 @@
 from pathlib import Path
+from unittest import skip
+
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.template.loader import get_template, render_to_string
@@ -45,6 +47,7 @@ class InterfaceRulesTests(SimpleTestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("note", form.errors)
 
+    @skip("Template del motore produttivo storico disattivato")
     def test_ingredient_page_renders_article_without_category(self):
         from types import SimpleNamespace as NS
         row = NS(articolo=NS(descrizione="Fragole gelo", unita_misura="KG"),
@@ -56,6 +59,7 @@ class InterfaceRulesTests(SimpleTestCase):
         self.assertIn("Fragole gelo", html)
         self.assertIn("KG", html)
 
+    @skip("Template del motore produttivo storico disattivato")
     def test_ingredient_page_renders_category_without_article(self):
         from types import SimpleNamespace as NS
         row = NS(articolo=None, categoria_articolo=NS(nome="Frutta surgelata"), quantita="10")
