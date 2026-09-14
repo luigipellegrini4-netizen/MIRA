@@ -302,16 +302,6 @@
     box-shadow: inset 4px 0 #bd8423, 0 2px 7px #183b2d0a;
 }
 
-.trace-map .trace-card.current.finished {
-    border-color: #57ad88;
-    box-shadow: inset 5px 0 #83d0ab, 0 0 0 2px #146a58;
-}
-
-.trace-map .trace-card.current.external {
-    border-color: #75a8c5;
-    box-shadow: inset 5px 0 #72badf, 0 0 0 2px #22698f;
-}
-
 .trace-legend {
     display: flex;
     gap: 18px;
@@ -325,9 +315,9 @@
 
 .trace-legend span { display: inline-flex; align-items: center; gap: 7px; }
 .trace-legend i { width: 12px; height: 12px; border: 1px solid; border-radius: 3px; }
-.trace-legend i.external { border-color: #75a8c5; background: #eaf5fb; }
-.trace-legend i.finished { border-color: #3b8167; background: #dff1e8; }
-.trace-legend i.sale { border-color: #d7bd82; background: #fff1c9; }
+.trace-legend i.external { border-color: #75a8c5; background: #eaf5fb; box-shadow: inset 3px 0 #397fa5; }
+.trace-legend i.finished { border-color: #3b8167; background: #dff1e8; box-shadow: inset 3px 0 #146a58; }
+.trace-legend i.sale { border-color: #d7bd82; background: #fff8e8; box-shadow: inset 3px 0 #bd8423; }
 
 .trace-external-panel { border-color: #a9cadc; }
 .trace-external-panel > .panel-head { background: #f1f8fc; }
@@ -391,6 +381,40 @@
 .trace-map .trace-card.current small,
 .trace-map .trace-card.current .trace-kind {
     color: #bed1c4;
+}
+
+.trace-map .trace-card.current.external {
+    border-color: #75a8c5;
+    background: #eaf5fb;
+    color: var(--deep);
+    box-shadow: inset 5px 0 #397fa5, 0 0 0 2px #22698f;
+}
+
+.trace-map .trace-card.current.external a,
+.trace-map .trace-card.current.external strong {
+    color: var(--deep);
+}
+
+.trace-map .trace-card.current.external small,
+.trace-map .trace-card.current.external .trace-kind {
+    color: #22698f;
+}
+
+.trace-map .trace-card.current.finished {
+    border-color: #3b8167;
+    background: #dff1e8;
+    color: var(--deep);
+    box-shadow: inset 5px 0 #146a58, 0 0 0 2px #146a58;
+}
+
+.trace-map .trace-card.current.finished a,
+.trace-map .trace-card.current.finished strong {
+    color: var(--deep);
+}
+
+.trace-map .trace-card.current.finished small,
+.trace-map .trace-card.current.finished .trace-kind {
+    color: #0f5d4c;
 }
 
 .trace-quantity {
