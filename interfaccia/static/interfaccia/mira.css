@@ -3,10 +3,10 @@
 
 /* Marchi aziendali: i JPEG originali sono molto chiari, quindi il contrasto viene corretto solo a video. */
 .brand-image{display:block;max-width:100%;height:auto;filter:brightness(.51) contrast(55)}
-.brand-image-link{display:block;width:174px;overflow:hidden;border-radius:4px;background:#fff}
-.sidebar-mira-logo{width:174px}
-.sidebar-company-logo{width:160px;margin:0 0 18px -5px}
-.login-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:25px;padding:13px 16px;border:1px solid var(--line);border-radius:9px;background:#fff}
-.login-mira-logo{width:230px}
-.login-company-logo{width:205px}
-@media(max-width:720px){.brand-image-link,.sidebar-mira-logo{width:138px}.login-brand-lockup{padding:10px 12px}.login-mira-logo{width:205px}.login-company-logo{width:180px}}
+.brand-image-link{display:block;width:132px;overflow:hidden;border-radius:4px;background:#fff}
+.sidebar-mira-logo{width:132px}
+.sidebar-company-logo{width:118px;margin:0 0 14px -3px}
+.login-brand-lockup{display:flex;flex-direction:column;align-items:flex-start;gap:0;width:190px;margin-bottom:20px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.login-mira-logo{width:158px}
+.login-company-logo{width:142px}
+@media(max-width:720px){.brand-image-link,.sidebar-mira-logo{width:116px}.login-brand-lockup{width:174px;padding:7px 9px}.login-mira-logo{width:145px}.login-company-logo{width:132px}}
