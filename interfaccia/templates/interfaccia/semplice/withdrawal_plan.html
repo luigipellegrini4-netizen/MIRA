@@ -1,15 +1,13 @@
-{% if session.stato == 'APERTA' and can_view_stock %}
+{% if session.stato == 'PIANIFICATA' and can_view_stock %}
 <section class="panel withdrawal-plan space-top">
   <div class="panel-head">
     <div><p class="eyebrow">PRIMA DI INIZIARE</p><h2>Piano di prelievo operativo</h2><small>Consulta cosa prendere e dove trovarlo. Questo riepilogo non prenota e non scarica materiale.</small></div>
-    {% if session.tipo == 'SEMILAVORATO' or session.tipo == 'ROBOQBO' %}
-      {% if session.prelievo_ricetta_registrato %}<span class="pill">Ricetta già prelevata</span>{% else %}<a class="button primary" href="{% url 'ui:simple_picking' session.pk %}">Controlla e conferma</a>{% endif %}
-    {% endif %}
+    <span class="pill neutral">Solo previsione</span>
   </div>
 
   {% if withdrawal_plan %}
     <div class="withdrawal-block">
-      <div class="withdrawal-block-title"><div><h3>Materiali della ricetta</h3><small>La riga evidenziata come “Proposto” segue il criterio indicato; sono mostrate anche tutte le alternative disponibili.</small></div><span class="counter">{{ withdrawal_plan|length }} ingredienti</span></div>
+      <div class="withdrawal-block-title"><div><h3>Materiali della ricetta</h3><small>La riga evidenziata come “Proposto” segue il criterio indicato; sono mostrate anche tutte le alternative disponibili. Dopo l’avvio potrai modificare e confermare il prelievo.</small></div><span class="counter">{{ withdrawal_plan|length }} ingredienti</span></div>
       {% for item in withdrawal_plan %}
         <details class="withdrawal-item" open>
           <summary>

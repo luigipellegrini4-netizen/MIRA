@@ -149,7 +149,7 @@ def session(request, pk):
     selected_moca_ids = []
     moca_stock_groups = []
     can_view_stock = request.user.has_perm("magazzino.view_giacenza")
-    if obj.stato == "APERTA" and can_view_stock:
+    if obj.stato == "PIANIFICATA" and can_view_stock:
         if obj.tipo in {"SEMILAVORATO", "ROBOQBO"} and not obj.prelievo_ricetta_registrato:
             totals = {}
             for recipe_row in obj.ricetta.righe.select_related("articolo").order_by("pk"):
