@@ -1,5 +1,6 @@
-{% extends 'interfaccia/base.html' %}{% block title %}Articoli · MIRA{% endblock %}{% block content %}{% include 'interfaccia/anagrafiche_tabs.html' %}
+{% extends 'interfaccia/base.html' %}{% block title %}Articoli · MIRA{% endblock %}{% block content %}
 <div class="page-head"><div><p class="eyebrow">CATALOGO AZIENDALE</p><h1>Anagrafiche articoli</h1><p class="muted">Articoli raggruppati per categoria.</p></div><div><a class="button secondary" href="{% url 'ui:download_csv' 'articoli' %}">Scarica CSV</a> <a class="button secondary" href="{% url 'ui:manage_csv' %}?tipo=articoli">Carica CSV</a> {% if perms.anagrafiche.add_articolo %}<a class="button primary" href="{% url 'ui:article_new' %}">Nuovo articolo</a>{% endif %}</div></div>
+{% include 'interfaccia/anagrafiche_tabs.html' %}
 <section class="panel">{% include 'interfaccia/search.html' %}</section>
 {% regroup articles by categoria as category_groups %}
 <div class="stock-locations">
