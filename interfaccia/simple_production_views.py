@@ -16,6 +16,7 @@ from magazzino.selectors import StockProposalService
 from magazzino.selectors.stock_proposals import order_stocks
 from magazzino.services import MovementService, Position
 from produzione.models import (NonConformitaSessioneSemplificata,
+                               ConfigurazioneControlloSemplificato,
                                PrelievoSessioneSemplificata,
                                SessioneProduzioneSemplificata)
 from produzione.services import ProduzioneSemplificataService
@@ -215,6 +216,38 @@ def session(request, pk):
             control for control in controls
             if control.tipo != "BATCH" or control.numero > obj.numero_batch_previsti
         ]
+    control_definitions = {
+        "SEMILAVORATO": [("SEMILAVORATO", "SEMILAVORATO", "Controlli semilavorato")],
+        "ROBOQBO": [
+            ("BATCH", "ROBOQBO_BATCH", "Controlli batch registrati"),
+            ("TANK", "ROBOQBO_TANK", "Controlli tank"),
+        ],
+        "INVASETTAMENTO": [("CARRELLO", "INVASETTAMENTO_CARRELLO", "Controlli carrelli")],
+    }.get(obj.tipo, [])
+    configured_ambits = [ambit for _control_type, ambit, _title in control_definitions]
+    configurations = ConfigurazioneControlloSemplificato.objects.filter(
+        attivo=True, ambito__in=configured_ambits,
+    ).order_by("ordine", "pk")
+    columns_by_ambit = {}
+    for configuration in configurations:
+        columns_by_ambit.setdefault(configuration.ambito, []).append(configuration)
+    displayed_by_type = {}
+    for control in displayed_controls:
+        displayed_by_type.setdefault(control.tipo, []).append(control)
+    control_tables = []
+    for control_type, ambit, title in control_definitions:
+        table_rows = displayed_by_type.get(control_type, [])
+        columns = columns_by_ambit.get(ambit, [])
+        # Durante RoboQbo aperta, i batch previsti sono già nella tabella editabile sopra.
+        if batch_formset is not None and control_type == "BATCH" and not table_rows:
+            continue
+        if columns or table_rows:
+            show_associations = control_type == "TANK"
+            control_tables.append({
+                "title": title, "rows": table_rows, "columns": columns,
+                "show_batch_associations": show_associations,
+                "colspan": 2 + len(columns) + (1 if show_associations else 0),
+            })
     return render(request, "interfaccia/semplice/session.html", {"section": "produzione-semplice", "session": obj,
         "controls": controls, "displayed_controls": displayed_controls, "batch_formset": batch_formset,
         "picks": obj.prelievi.select_related("lotto__articolo", "movimento__ubicazione_origine"),
@@ -223,7 +256,7 @@ def session(request, pk):
         "labeling_remaining": labeling_remaining,
         "withdrawal_plan": withdrawal_plan, "can_view_stock": can_view_stock,
         "moca_articles": moca_articles, "selected_moca_ids": selected_moca_ids,
-        "moca_stock_groups": moca_stock_groups})
+        "moca_stock_groups": moca_stock_groups, "control_tables": control_tables})
 
 
 @permitted("auth.can_execute_production")

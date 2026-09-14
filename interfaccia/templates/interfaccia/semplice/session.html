@@ -34,31 +34,26 @@
   </form>
 </section>
 {% endif %}
-<section class="panel {% if batch_formset %}space-top{% endif %}">
-  <div class="panel-head"><h2>{% if batch_formset %}Controlli tank e aggiuntivi{% else %}Controlli{% endif %}</h2></div>
+{% for control_table in control_tables %}<section class="panel{% if batch_formset or not forloop.first %} space-top{% endif %}">
+  <div class="panel-head"><h2>{{ control_table.title }}</h2><span class="counter">{{ control_table.rows|length }}</span></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Tipo</th><th>N.</th><th>Batch associati</th><th>Inizio</th><th>Fine</th><th>Tracciato 82 °C × 60 s</th><th>°Brix</th><th>pH</th><th>2ª pastorizzazione</th><th>Shock termico e vuoto</th><th>Esito</th></tr></thead>
+      <thead><tr><th>N.</th>{% if control_table.show_batch_associations %}<th>Batch associati</th>{% endif %}{% for column in control_table.columns %}<th>{{ column.nome }}</th>{% endfor %}<th>Esito</th></tr></thead>
       <tbody>
-        {% for c in displayed_controls %}
+        {% for c in control_table.rows %}
           <tr>
-            <td><strong>{{ c.get_tipo_display }}</strong></td>
-            <td>{{ c.numero }}</td>
-            <td>{% for link in c.associazioni_batch.all %}<span class="pill neutral">Batch {{ link.batch.numero }}</span>{% empty %}—{% endfor %}</td>
-            <td>{{ c.inizio|date:'H:i'|default:'—' }}</td>
-            <td>{{ c.fine|date:'H:i'|default:'—' }}</td>
-            <td>{{ c.esito_tracciato_termico|default:'—' }}</td>
-            <td>{% if c.gradi_brix != None %}{{ c.gradi_brix|floatformat:'-3' }}{% else %}—{% endif %}</td>
-            <td>{% if c.ph != None %}{{ c.ph|floatformat:'-3' }}{% else %}—{% endif %}</td>
-            <td>{{ c.esito_pastorizzazione|default:'—' }}</td>
-            <td>{{ c.esito_shock_vuoto|default:'—' }}</td>
+            <td><strong>{{ c.numero }}</strong></td>
+            {% if control_table.show_batch_associations %}<td>{% for link in c.associazioni_batch.all %}<span class="pill neutral">Batch {{ link.batch.numero }}</span>{% empty %}—{% endfor %}</td>{% endif %}
+            {% for column in control_table.columns %}
+              <td>{% if column.codice == 'INIZIO' %}{{ c.inizio|date:'H:i'|default:'—' }}{% elif column.codice == 'FINE' %}{{ c.fine|date:'H:i'|default:'—' }}{% elif column.codice == 'TRACCIATO' %}{{ c.esito_tracciato_termico|default:'—' }}{% elif column.codice == 'BRIX' %}{% if c.gradi_brix != None %}{{ c.gradi_brix|floatformat:'-3' }}{% else %}—{% endif %}{% elif column.codice == 'PH' %}{% if c.ph != None %}{{ c.ph|floatformat:'-3' }}{% else %}—{% endif %}{% elif column.codice == 'PASTORIZZAZIONE' %}{{ c.esito_pastorizzazione|default:'—' }}{% elif column.codice == 'SHOCK_VUOTO' %}{{ c.esito_shock_vuoto|default:'—' }}{% else %}—{% endif %}</td>
+            {% endfor %}
             <td><span class="pill {% if not c.conforme %}amber{% endif %}">{{ c.esito }}</span></td>
           </tr>
-        {% empty %}<tr><td colspan="11" class="empty">{% if batch_formset %}Nessun controllo tank o batch aggiuntivo registrato.{% else %}Nessun controllo registrato.{% endif %}</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="{{ control_table.colspan }}" class="empty">Nessun controllo registrato.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-</section>
+</section>{% endfor %}
 {% if ncs %}<section class="panel"><div class="panel-head"><h2>Non conformità</h2></div><div class="panel-body">{% for n in ncs %}<p><strong>NC {{ n.pk }} · {{ n.get_stato_display }}</strong><br>{{ n.descrizione }}</p>{% endfor %}</div></section>{% endif %}
 {% if session.riepilogo_finale %}<section class="panel"><div class="panel-head"><h2>Riepilogo finale</h2></div><div class="panel-body"><p>Buoni {{ session.riepilogo_finale.vasetti_buoni }} · Scarti {{ session.riepilogo_finale.vasetti_scartati }} · Quarantena {{ session.riepilogo_finale.vasetti_quarantena }}</p><p><strong>Quantità finale {{ session.riepilogo_finale.quantita_finale_kg|floatformat:3 }} kg · Resa {{ session.riepilogo_finale.resa_percentuale|floatformat:2 }}%</strong></p></div></section>{% endif %}
 {% if session.stato == 'APERTA' and session.tipo == 'INVASETTAMENTO' or session.stato == 'APERTA' and session.tipo == 'ETICHETTATURA' or session.stato == 'APERTA' and session.tipo == 'CONFEZIONAMENTO' or session.stato == 'APERTA' and session.prelievo_ricetta_registrato %}
