@@ -278,6 +278,68 @@
     color: #855716;
 }
 
+.trace-card.external {
+    border-color: #75a8c5;
+    background: #eaf5fb;
+    box-shadow: inset 4px 0 #397fa5, 0 2px 7px #183b2d0a;
+}
+
+.trace-card.external .trace-kind {
+    color: #22698f;
+}
+
+.trace-card.finished {
+    border-color: #3b8167;
+    background: #dff1e8;
+    box-shadow: inset 4px 0 #146a58, 0 2px 7px #183b2d0a;
+}
+
+.trace-card.finished .trace-kind {
+    color: #0f5d4c;
+}
+
+.trace-card.sale {
+    box-shadow: inset 4px 0 #bd8423, 0 2px 7px #183b2d0a;
+}
+
+.trace-map .trace-card.current.finished {
+    border-color: #57ad88;
+    box-shadow: inset 5px 0 #83d0ab, 0 0 0 2px #146a58;
+}
+
+.trace-map .trace-card.current.external {
+    border-color: #75a8c5;
+    box-shadow: inset 5px 0 #72badf, 0 0 0 2px #22698f;
+}
+
+.trace-legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 13px 24px;
+    border-bottom: 1px solid var(--line);
+    background: #fafbf8;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.trace-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.trace-legend i { width: 12px; height: 12px; border: 1px solid; border-radius: 3px; }
+.trace-legend i.external { border-color: #75a8c5; background: #eaf5fb; }
+.trace-legend i.finished { border-color: #3b8167; background: #dff1e8; }
+.trace-legend i.sale { border-color: #d7bd82; background: #fff1c9; }
+
+.trace-external-panel { border-color: #a9cadc; }
+.trace-external-panel > .panel-head { background: #f1f8fc; }
+.trace-sales-panel { border-color: #ddc68f; }
+.trace-sales-panel > .panel-head { background: #fff9ea; }
+.trace-external-row { background: #f4faff; }
+.trace-finished-row { background: #f0f8f3; }
+.trace-sale-row { background: #fffaec; }
+.trace-external-row:hover { background: #eaf5fb; }
+.trace-finished-row:hover { background: #e4f3e9; }
+.trace-sale-row:hover { background: #fff3d2; }
+
 .trace-map {
     display: flex;
     align-items: stretch;

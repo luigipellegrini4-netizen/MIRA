@@ -190,7 +190,11 @@ def lot_detail(request, pk):
         nodes = {
             n["nodo"]: {"titolo": n["codice"],
                         "sottotitolo": f"{n['articolo_codice']} — {n['articolo_descrizione']}",
-                        "tipo": "Lotto", "url": reverse("ui:lot", args=[n["id"]]),
+                        "tipo": ("Lotto esterno" if n["tipo"] == "ACQUISTO" else
+                                 "Prodotto finito" if n["stato_prodotto"] == "PRODOTTO_FINITO" else "Lotto"),
+                        "evidenza": ("external" if n["tipo"] == "ACQUISTO" else
+                                     "finished" if n["stato_prodotto"] == "PRODOTTO_FINITO" else ""),
+                        "url": reverse("ui:lot", args=[n["id"]]),
                         "corrente": n["id"] == lot.pk,
                         "scadenza": date.fromisoformat(n["data_scadenza"]).strftime("%d/%m/%Y") if n["data_scadenza"] else ""}
             for n in graph["lotti"]
@@ -212,7 +216,8 @@ def lot_detail(request, pk):
             nodes[node_key] = {
                 "titolo": f"Vendita {sale['documento']}",
                 "sottotitolo": f"Cliente: {sale['cliente']} · {date.fromisoformat(sale['data']).strftime('%d/%m/%Y')}",
-                "tipo": "Vendita",
+                "tipo": "Vendita al cliente",
+                "evidenza": "sale",
                 "url": reverse("ui:sales") if request.user.has_perm("auth.can_manage_sales") else "",
                 "corrente": False,
             }

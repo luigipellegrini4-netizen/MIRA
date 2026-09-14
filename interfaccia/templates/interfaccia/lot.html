@@ -18,10 +18,10 @@
   {% empty %}<div class="empty">Nessuna giacenza consultabile.</div>{% endfor %}
 </section>
 {% if sales_movements %}
-<section class="panel space-top">
+<section class="panel space-top trace-sales-panel">
   <div class="panel-head"><div><h2>Vendite del lotto</h2><small>Documenti e clienti ai quali il lotto è stato destinato.</small></div><span class="counter">{{ sales_movements|length }}</span></div>
   <div class="table-wrap"><table><thead><tr><th>Documento</th><th>Cliente</th><th>Data</th><th>Origine</th><th class="number">Quantità</th></tr></thead><tbody>
-  {% for movement in sales_movements %}<tr><td><strong>{{ movement.riga_vendita.vendita.numero_documento }}</strong></td><td>{{ movement.riga_vendita.vendita.cliente.ragione_sociale }}</td><td>{{ movement.riga_vendita.vendita.data_documento|date:'d/m/Y' }}</td><td>{{ movement.ubicazione_origine.nome }}{% if movement.scaffale_origine %} · {{ movement.scaffale_origine }}{% endif %}{% if movement.piano_origine %}/{{ movement.piano_origine }}{% endif %}</td><td class="number"><strong>{{ movement.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></td></tr>{% endfor %}
+  {% for movement in sales_movements %}<tr class="trace-sale-row"><td><strong>{{ movement.riga_vendita.vendita.numero_documento }}</strong></td><td><strong>{{ movement.riga_vendita.vendita.cliente.ragione_sociale }}</strong><small>Cliente</small></td><td>{{ movement.riga_vendita.vendita.data_documento|date:'d/m/Y' }}</td><td>{{ movement.ubicazione_origine.nome }}{% if movement.scaffale_origine %} · {{ movement.scaffale_origine }}{% endif %}{% if movement.piano_origine %}/{{ movement.piano_origine }}{% endif %}</td><td class="number"><strong>{{ movement.quantita|floatformat:'-6' }} {{ lot.articolo.unita_misura }}</strong></td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% endif %}
@@ -45,7 +45,7 @@
   {% if graph.troncato %}<div class="notice warning">Il percorso supera il limite di visualizzazione. Apri uno dei lotti per proseguire.</div>{% endif %}
 
   {% if direction == 'MONTE' %}
-    <section class="panel space-top">
+    <section class="panel space-top trace-external-panel">
       <div class="panel-head">
         <div><h2>Materiali provenienti dall’esterno</h2><small>Lotti acquistati utilizzati lungo tutta la catena produttiva, compresi i MOCA.</small></div>
         <span class="counter">{{ graph.materiali_esterni|length }} lotti</span>
@@ -55,7 +55,7 @@
           <thead><tr><th>Tipo</th><th>Articolo</th><th>Lotto fornitore</th><th>Fornitore</th><th>Scadenza</th><th class="number">Quantità utilizzata</th></tr></thead>
           <tbody>
             {% for material in graph.materiali_esterni %}
-              <tr>
+              <tr class="trace-external-row">
                 <td>{% if material.moca %}<span class="pill">MOCA</span>{% else %}<span class="pill neutral">Ingrediente</span>{% endif %}</td>
                 <td><strong>{{ material.articolo_descrizione }}</strong><small>{{ material.articolo_codice }}</small></td>
                 <td><a href="{% url 'ui:lot' material.lotto_id %}">{{ material.lotto_codice }}</a></td>
@@ -75,6 +75,11 @@
       <div><h2>Genealogia del lotto</h2><small>Ogni elemento compare una sola volta. Clicca un lotto o una produzione per aprirlo.</small></div>
       <span class="counter">{{ graph.lotti|length }} lotti</span>
     </div>
+    <div class="trace-legend" aria-label="Legenda genealogia">
+      <span><i class="external" aria-hidden="true"></i>Lotto proveniente dall’esterno</span>
+      <span><i class="finished" aria-hidden="true"></i>Prodotto finito</span>
+      <span><i class="sale" aria-hidden="true"></i>Vendita al cliente</span>
+    </div>
     <div class="trace-map">
       {% for level in graph.trace_levels %}
         <div class="trace-level">
@@ -87,8 +92,8 @@
           </span>
           <div class="trace-level-nodes">
             {% for node in level %}
-              <article class="trace-card {% if node.corrente %}current{% elif node.tipo == 'Produzione' %}process{% elif node.tipo == 'Vendita' %}sale{% endif %}">
-                <span class="trace-kind">{% if node.corrente %}Lotto selezionato{% else %}{{ node.tipo }}{% endif %}</span>
+              <article class="trace-card{% if node.corrente %} current{% endif %}{% if node.tipo == 'Produzione' %} process{% endif %}{% if node.evidenza %} {{ node.evidenza }}{% endif %}">
+                <span class="trace-kind">{% if node.corrente %}Lotto selezionato · {{ node.tipo }}{% else %}{{ node.tipo }}{% endif %}</span>
                 {% if node.url %}<a href="{{ node.url }}">{{ node.titolo }}</a>{% else %}<strong>{{ node.titolo }}</strong>{% endif %}
                 <small>{{ node.sottotitolo }}</small>
                 {% if node.scadenza %}<small>Scadenza {{ node.scadenza }}</small>{% endif %}
@@ -110,7 +115,7 @@
     <div class="table-wrap"><table>
       <thead><tr><th>Origine</th><th>Destinazione</th><th>Tipo</th><th class="number">Quantità registrata</th></tr></thead>
       <tbody>{% for edge in graph.legami_materiali %}
-        <tr><td>{% if edge.nodo_origine.url %}<a href="{{ edge.nodo_origine.url }}">{{ edge.origine }}</a>{% else %}{{ edge.origine }}{% endif %}</td>
+        <tr class="{% if edge.nodo_destinazione.evidenza == 'sale' %}trace-sale-row{% elif edge.nodo_origine.evidenza == 'external' %}trace-external-row{% elif edge.nodo_destinazione.evidenza == 'finished' %}trace-finished-row{% endif %}"><td>{% if edge.nodo_origine.url %}<a href="{{ edge.nodo_origine.url }}">{{ edge.origine }}</a>{% else %}{{ edge.origine }}{% endif %}</td>
           <td>{% if edge.nodo_destinazione.url %}<a href="{{ edge.nodo_destinazione.url }}">{{ edge.destinazione }}</a>{% else %}{{ edge.destinazione }}{% endif %}</td>
           <td>{{ edge.tipo }}</td><td class="number">{% if edge.quantita != None %}{{ edge.quantita|floatformat:'-6' }} {{ edge.unita_misura }}{% else %}—{% endif %}</td></tr>
       {% empty %}<tr><td colspan="4" class="empty">Nessun collegamento registrato.</td></tr>{% endfor %}</tbody>

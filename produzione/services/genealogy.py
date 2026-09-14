@@ -214,6 +214,7 @@ class GenealogyService:
             "troncato": bool(omitted), "frontiera_omessa_ids": sorted(omitted),
             "ciclo_materiale_rilevato": has_cycle((e["da"], e["a"]) for e in edges),
             "lotti": [{"id": l.pk, "nodo": f"lotto:{l.pk}", "codice": l.codice_lotto, "tipo": l.tipo,
+                "stato_prodotto": l.stato_prodotto,
                 "articolo_id": l.articolo_id, "articolo_codice": l.articolo.codice,
                 "articolo_descrizione": l.articolo.descrizione, "unita_misura": l.articolo.unita_misura,
                 "fornitore_id": l.fornitore_id, "fornitore": l.fornitore.ragione_sociale if l.fornitore_id else None,
