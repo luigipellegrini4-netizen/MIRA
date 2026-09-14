@@ -1,0 +1,58 @@
+{% if session.stato == 'APERTA' and can_view_stock %}
+<section class="panel withdrawal-plan space-top">
+  <div class="panel-head">
+    <div><p class="eyebrow">PRIMA DI INIZIARE</p><h2>Piano di prelievo operativo</h2><small>Consulta cosa prendere e dove trovarlo. Questo riepilogo non prenota e non scarica materiale.</small></div>
+    {% if session.tipo == 'SEMILAVORATO' or session.tipo == 'ROBOQBO' %}
+      {% if session.prelievo_ricetta_registrato %}<span class="pill">Ricetta già prelevata</span>{% else %}<a class="button primary" href="{% url 'ui:simple_picking' session.pk %}">Controlla e conferma</a>{% endif %}
+    {% endif %}
+  </div>
+
+  {% if withdrawal_plan %}
+    <div class="withdrawal-block">
+      <div class="withdrawal-block-title"><div><h3>Materiali della ricetta</h3><small>La riga evidenziata come “Proposto” segue il criterio indicato; sono mostrate anche tutte le alternative disponibili.</small></div><span class="counter">{{ withdrawal_plan|length }} ingredienti</span></div>
+      {% for item in withdrawal_plan %}
+        <details class="withdrawal-item" open>
+          <summary>
+            <span><strong>{{ item.articolo.descrizione }}</strong><small>{{ item.articolo.codice }} · {{ item.criterio }}</small></span>
+            <span class="withdrawal-required">Da prelevare <strong>{{ item.richiesta|floatformat:'-6' }} {{ item.articolo.unita_misura }}</strong>{% if item.mancante %}<small class="withdrawal-missing">Mancano {{ item.mancante|floatformat:'-6' }} {{ item.articolo.unita_misura }}</small>{% endif %}</span>
+          </summary>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Scelta</th><th>Lotto</th><th>Ubicazione</th><th>Riferimento</th><th class="number">Disponibile</th><th class="number">Quantità proposta</th></tr></thead>
+            <tbody>
+              {% for option in item.opzioni %}
+                <tr{% if option.proposta %} class="withdrawal-proposed"{% endif %}>
+                  <td>{% if option.proposta %}<span class="pill">Proposto</span>{% else %}<span class="pill neutral">Alternativa</span>{% endif %}</td>
+                  <td><strong>{{ option.stock.lotto.codice_lotto }}</strong><small>{{ option.stock.lotto.articolo.descrizione }}</small></td>
+                  <td><strong>{{ option.stock.ubicazione.codice }}</strong><small>Scaffale {{ option.stock.scaffale|default:'—' }} · piano {{ option.stock.piano|default:'—' }}</small></td>
+                  <td>{% if option.data_scadenza %}Scadenza {{ option.data_scadenza|date:'d/m/Y' }}{% elif option.data_carico %}Carico {{ option.data_carico|date:'d/m/Y' }}{% else %}—{% endif %}</td>
+                  <td class="number">{{ option.disponibile|floatformat:'-6' }} {{ item.articolo.unita_misura }}</td>
+                  <td class="number">{% if option.proposta %}<strong>{{ option.proposta|floatformat:'-6' }} {{ item.articolo.unita_misura }}</strong>{% else %}—{% endif %}</td>
+                </tr>
+              {% empty %}<tr><td colspan="6" class="empty">Nessuna giacenza prelevabile.</td></tr>{% endfor %}
+            </tbody>
+          </table></div>
+        </details>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="withdrawal-block moca-planner">
+    <div class="withdrawal-block-title"><div><h3>MOCA e materiali di confezionamento</h3><small>Seleziona anche più articoli, per esempio vasetti, capsule, sacchetti, etichette o cartoni.</small></div></div>
+    {% if moca_articles %}
+      <form method="get" class="moca-plan-form">
+        <fieldset class="moca-choice-field"><legend>Tipi di MOCA da cercare</legend><div class="moca-choice-list">{% for article in moca_articles %}<label class="moca-choice"><input type="checkbox" name="moca" value="{{ article.pk }}"{% if article.pk in selected_moca_ids %} checked{% endif %}><span><strong>{{ article.descrizione }}</strong><small>{{ article.codice }} · {{ article.unita_misura }}</small></span></label>{% endfor %}</div></fieldset>
+        <button class="button secondary" type="submit">Mostra dove prelevare</button>
+      </form>
+      {% for group in moca_stock_groups %}
+        <details class="withdrawal-item moca-item" open>
+          <summary><span><strong>{{ group.articolo.descrizione }}</strong><small>{{ group.articolo.codice }} · criterio {{ group.criterio }}</small></span><span class="counter">{{ group.opzioni|length }} possibilità</span></summary>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Lotto</th><th>Ubicazione</th><th>Riferimento</th><th class="number">Disponibile</th></tr></thead>
+            <tbody>{% for option in group.opzioni %}<tr><td><strong>{{ option.stock.lotto.codice_lotto }}</strong><small>{{ group.articolo.descrizione }}</small></td><td><strong>{{ option.stock.ubicazione.codice }}</strong><small>Scaffale {{ option.stock.scaffale|default:'—' }} · piano {{ option.stock.piano|default:'—' }}</small></td><td>{% if option.data_scadenza %}Scadenza {{ option.data_scadenza|date:'d/m/Y' }}{% elif option.data_carico %}Carico {{ option.data_carico|date:'d/m/Y' }}{% else %}—{% endif %}</td><td class="number"><strong>{{ option.disponibile|floatformat:'-6' }} {{ group.articolo.unita_misura }}</strong></td></tr>{% empty %}<tr><td colspan="4" class="empty">Nessuna giacenza prelevabile.</td></tr>{% endfor %}</tbody>
+          </table></div>
+        </details>
+      {% empty %}<div class="moca-plan-help">Scegli uno o più MOCA per visualizzare tutti i lotti e le posizioni disponibili.</div>{% endfor %}
+    {% else %}<div class="empty">Nessun articolo MOCA con giacenza disponibile.</div>{% endif %}
+  </div>
+</section>
+{% endif %}

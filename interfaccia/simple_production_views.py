@@ -8,9 +8,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from datetime import datetime
+from decimal import Decimal
 
-from magazzino.models import Movimento
+from anagrafiche.models import Articolo
+from magazzino.models import Giacenza, Movimento
 from magazzino.selectors import StockProposalService
+from magazzino.selectors.stock_proposals import order_stocks
 from magazzino.services import MovementService, Position
 from produzione.models import (NonConformitaSessioneSemplificata,
                                PrelievoSessioneSemplificata,
@@ -18,7 +21,8 @@ from produzione.models import (NonConformitaSessioneSemplificata,
 from produzione.services import ProduzioneSemplificataService
 from .simple_production_forms import (AdditionalPickingForm, BatchControlFormSet, ControlForm, NCForm, OpenFillingForm, OpenLabelingForm, OpenPackagingForm, OpenRoboQboForm,
     OpenSemiFinishedForm, PickingForm, SemiFinishedPickingFormSet, SemiFinishedSummaryForm, SummaryForm,
-    LabelingSummaryForm, PackagingSummaryForm, SimpleNCActionForm, SimpleNCCloseForm, SimpleNCTakeChargeForm, SimpleNCVerificationForm)
+    LabelingSummaryForm, PackagingSummaryForm, SimpleNCActionForm, SimpleNCCloseForm, SimpleNCTakeChargeForm, SimpleNCVerificationForm,
+    article_ids_for_category)
 from .views import permitted
 
 
@@ -94,6 +98,35 @@ def open_packaging(request):
     return _form_view(request, OpenPackagingForm, lambda d: ProduzioneSemplificataService.apri_confezionamento(actor=request.user, **d), "Apri confezionamento")
 
 
+def _available_stock_options(article):
+    """Giacenze prelevabili nello stesso ordine usato dalla proposta FIFO/FEFO."""
+    from qualita.nc_selectors import blocked_quantity, quarantine_balances
+
+    stocks = Giacenza.objects.filter(
+        lotto__articolo=article, quantita__gt=0, ubicazione__attiva=True,
+    ).select_related("lotto__articolo", "ubicazione")
+    stocks = order_stocks(stocks, article)
+    held_by_lot = {}
+    rows = []
+    for stock in stocks:
+        if stock.lotto_id not in held_by_lot:
+            held_by_lot[stock.lotto_id] = quarantine_balances(lotto=stock.lotto_id)
+        blocked = blocked_quantity(
+            held_by_lot[stock.lotto_id], lotto_id=stock.lotto_id,
+            ubicazione_id=stock.ubicazione_id, scaffale=stock.scaffale, piano=stock.piano,
+        )
+        available = max(Decimal("0"), stock.quantita - blocked)
+        if not available:
+            continue
+        rows.append({
+            "stock": stock,
+            "disponibile": available,
+            "data_scadenza": stock.lotto.data_scadenza,
+            "data_carico": stock.primo_ingresso,
+        })
+    return rows
+
+
 @permitted("produzione.view_sessioneproduzionesemplificata")
 def session(request, pk):
     obj = get_object_or_404(SessioneProduzioneSemplificata.objects.select_related("postazione__risorsa", "ricetta__articolo", "lotto_origine"), pk=pk)
@@ -111,6 +144,52 @@ def session(request, pk):
     if obj.tipo in {"SEMILAVORATO", "ROBOQBO"}:
         forecast = [(row.articolo, row.quantita * obj.batch_previsti)
                     for row in obj.ricetta.righe.select_related("articolo")]
+    withdrawal_plan = []
+    moca_articles = []
+    selected_moca_ids = []
+    moca_stock_groups = []
+    can_view_stock = request.user.has_perm("magazzino.view_giacenza")
+    if obj.stato == "APERTA" and can_view_stock:
+        if obj.tipo in {"SEMILAVORATO", "ROBOQBO"} and not obj.prelievo_ricetta_registrato:
+            totals = {}
+            for recipe_row in obj.ricetta.righe.select_related("articolo").order_by("pk"):
+                if not recipe_row.articolo_id:
+                    continue
+                totals.setdefault(recipe_row.articolo_id, [recipe_row.articolo, Decimal("0")])
+                totals[recipe_row.articolo_id][1] += recipe_row.quantita * obj.batch_previsti
+            for article, required in totals.values():
+                proposal = StockProposalService.propose(actor=request.user, articolo=article, quantita=required)
+                suggested = {line.giacenza_id: line.quantita for line in proposal.righe}
+                options = _available_stock_options(article)
+                for option in options:
+                    option["proposta"] = suggested.get(option["stock"].pk, Decimal("0"))
+                withdrawal_plan.append({
+                    "articolo": article, "richiesta": required, "criterio": proposal.criterio,
+                    "mancante": proposal.mancante, "opzioni": options,
+                })
+
+        moca_articles = list(
+            Articolo.objects.filter(
+                pk__in=article_ids_for_category("MOCA"), attivo=True,
+                lotti__giacenze__quantita__gt=0, lotti__giacenze__ubicazione__attiva=True,
+            ).distinct().order_by("descrizione", "codice")
+        )
+        valid_moca_ids = {article.pk for article in moca_articles}
+        for raw_id in request.GET.getlist("moca"):
+            try:
+                article_id = int(raw_id)
+            except (TypeError, ValueError):
+                continue
+            if article_id in valid_moca_ids and article_id not in selected_moca_ids:
+                selected_moca_ids.append(article_id)
+        selected_by_id = {article.pk: article for article in moca_articles}
+        for article_id in selected_moca_ids:
+            article = selected_by_id[article_id]
+            moca_stock_groups.append({
+                "articolo": article,
+                "criterio": article.criterio_rotazione,
+                "opzioni": _available_stock_options(article),
+            })
     batch_formset = None
     displayed_controls = controls
     labeling_remaining = None
@@ -141,7 +220,10 @@ def session(request, pk):
         "picks": obj.prelievi.select_related("lotto__articolo", "movimento__ubicazione_origine"),
         "ncs": ncs, "nc_count": nc_count, "incomplete_count": incomplete_count, "forecast": forecast,
         "input_totals": obj.quantita_iniziale_per_unita,
-        "labeling_remaining": labeling_remaining})
+        "labeling_remaining": labeling_remaining,
+        "withdrawal_plan": withdrawal_plan, "can_view_stock": can_view_stock,
+        "moca_articles": moca_articles, "selected_moca_ids": selected_moca_ids,
+        "moca_stock_groups": moca_stock_groups})
 
 
 @permitted("auth.can_execute_production")

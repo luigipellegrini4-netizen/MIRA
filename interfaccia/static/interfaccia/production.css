@@ -58,6 +58,34 @@
 .production-row:focus-visible { outline:3px solid #bd912c; outline-offset:-3px; }
 .session-open-link { display:inline-flex; align-items:center; gap:7px; font-weight:650; white-space:nowrap; }
 
+.withdrawal-plan>.panel-head { align-items:flex-start; background:#f8faf7; }
+.withdrawal-plan>.panel-head .eyebrow { margin-bottom:5px; }
+.withdrawal-plan>.panel-head h2 { margin-bottom:4px; }
+.withdrawal-block { padding:22px 24px; }
+.withdrawal-block+.withdrawal-block { border-top:1px solid var(--line); }
+.withdrawal-block-title { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:14px; }
+.withdrawal-block-title h3 { margin-bottom:3px; }
+.withdrawal-item { margin-top:10px; overflow:hidden; border:1px solid var(--line); border-radius:8px; background:#fff; }
+.withdrawal-item summary { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:14px 17px; cursor:pointer; list-style:none; background:#fafbf8; }
+.withdrawal-item summary::-webkit-details-marker { display:none; }
+.withdrawal-item[open] summary { border-bottom:1px solid var(--line); }
+.withdrawal-required { text-align:right; color:var(--muted); font-size:11px; }
+.withdrawal-required strong { margin-left:5px; color:var(--ink); }
+.withdrawal-missing { margin-top:3px; color:#9a3931; }
+.withdrawal-proposed { background:#eef7ef; }
+.moca-plan-form { display:flex; align-items:flex-end; gap:14px; margin-bottom:16px; }
+.moca-choice-field { min-width:0; flex:1; margin:0; padding:0; border:0; }
+.moca-choice-field legend { margin-bottom:8px; font-size:12px; font-weight:600; }
+.moca-choice-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; }
+.moca-choice { display:flex; align-items:center; gap:10px; min-width:0; padding:10px 12px; border:1px solid #cdd8ce; border-radius:7px; background:#fff; cursor:pointer; }
+.moca-choice:has(input:checked) { border-color:#75a98d; background:#eef7ef; }
+.moca-choice input { flex:0 0 auto; }
+.moca-choice span { min-width:0; }
+.moca-choice strong { display:block; font-size:12px; }
+.moca-choice small { margin-top:2px; font-size:10px; }
+.moca-plan-help { padding:18px; border:1px dashed #cdd8ce; border-radius:7px; color:var(--muted); background:#fafbf8; }
+.moca-item summary { background:#f5f8f3; }
+
 @media(max-width:1250px){.production-launchers{grid-template-columns:repeat(3,minmax(0,1fr))}.production-launcher{min-height:190px}}
 @media(max-width:850px){.production-launchers{grid-template-columns:repeat(2,minmax(0,1fr))}.production-overview{align-items:stretch;flex-direction:column}.production-kpis{min-height:55px;border-top:1px solid #ffffff1c}.production-kpis>span{flex:1;padding:12px 0;border-left:0}}
-@media(max-width:720px){.production-overview{min-height:0;padding:20px}.production-overview-copy strong{font-size:17px}.production-section-head{align-items:flex-start;flex-direction:column;gap:4px}.production-section-head>small{text-align:left}.production-launchers{grid-template-columns:1fr}.production-launcher{min-height:0}.production-summary{align-items:flex-start;padding:15px}.production-summary-title .production-phase,.production-summary-title small{display:none}.production-summary-meta{gap:7px}.production-summary-meta .counter{display:none}.production-group-actions{justify-content:stretch;padding:12px 14px 0}.production-group-actions .button{width:100%}}
+@media(max-width:720px){.production-overview{min-height:0;padding:20px}.production-overview-copy strong{font-size:17px}.production-section-head{align-items:flex-start;flex-direction:column;gap:4px}.production-section-head>small{text-align:left}.production-launchers{grid-template-columns:1fr}.production-launcher{min-height:0}.production-summary{align-items:flex-start;padding:15px}.production-summary-title .production-phase,.production-summary-title small{display:none}.production-summary-meta{gap:7px}.production-summary-meta .counter{display:none}.production-group-actions{justify-content:stretch;padding:12px 14px 0}.production-group-actions .button{width:100%}.withdrawal-plan>.panel-head,.withdrawal-item summary,.withdrawal-block-title,.moca-plan-form{align-items:stretch;flex-direction:column}.withdrawal-block{padding:16px}.withdrawal-required{text-align:left}}
