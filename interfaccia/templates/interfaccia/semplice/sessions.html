@@ -16,11 +16,11 @@
 <div class="production-section-head"><div><p class="eyebrow">FLUSSO OPERATIVO</p><h2>Avvia una lavorazione</h2></div><small>Le fasi seguono l’ordine normale del prodotto.</small></div>
 <nav class="production-launchers" aria-label="Fasi della produzione">
   {% for group in production_groups %}
-    <article class="production-launcher" data-production-type="{{ group.code }}">
+    {% if perms.auth.can_execute_production %}<a class="production-launcher" data-production-type="{{ group.code }}" href="{% url group.new_url %}" aria-label="Avvia nuova lavorazione {{ group.name }}">{% else %}<article class="production-launcher" data-production-type="{{ group.code }}">{% endif %}
       <div class="production-launcher-top"><span class="production-phase">0{{ group.phase }}</span><span class="production-marker">{{ group.marker }}</span></div>
       <div class="production-launcher-copy"><strong>{{ group.name }}</strong><small>{{ group.description }}</small></div>
-      <div class="production-launcher-foot"><span>{% if group.active_count %}<b>{{ group.active_count }}</b> attive{% else %}Nessuna attiva{% endif %}</span>{% if perms.auth.can_execute_production %}<a href="{% url group.new_url %}">Nuova <span aria-hidden="true">＋</span></a>{% endif %}</div>
-    </article>
+      <div class="production-launcher-foot"><span>{% if group.active_count %}<b>{{ group.active_count }}</b> attive{% else %}Nessuna attiva{% endif %}</span>{% if perms.auth.can_execute_production %}<span class="production-launcher-action">Nuova <span aria-hidden="true">＋</span></span>{% endif %}</div>
+    {% if perms.auth.can_execute_production %}</a>{% else %}</article>{% endif %}
   {% endfor %}
 </nav>
 

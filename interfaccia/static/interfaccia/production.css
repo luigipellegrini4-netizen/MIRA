@@ -17,8 +17,10 @@
 .production-section-head.archive-head { margin-top:38px; }
 
 .production-launchers { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
-.production-launcher { display:flex; min-width:0; min-height:220px; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-top:3px solid var(--green); border-radius:10px; background:#fff; box-shadow:0 3px 12px #173e3508; transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease; }
+.production-launcher { display:flex; min-width:0; min-height:220px; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-top:3px solid var(--green); border-radius:10px; background:#fff; color:inherit; box-shadow:0 3px 12px #173e3508; transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease; }
+.production-launchers a.production-launcher { cursor:pointer; text-decoration:none; }
 .production-launcher:hover { transform:translateY(-2px); border-color:#afc4b5; box-shadow:0 8px 22px #173e3514; }
+.production-launchers a.production-launcher:focus-visible { outline:3px solid #bd912c; outline-offset:3px; }
 .production-launcher-top { display:flex; align-items:center; justify-content:space-between; padding:17px 18px 9px; }
 .production-phase { color:#91a29b; font-size:10px; font-weight:750; letter-spacing:1.2px; }
 .production-phase.small { width:24px; }
@@ -29,8 +31,8 @@
 .production-launcher-copy small { line-height:1.45; }
 .production-launcher-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:13px 18px; border-top:1px solid var(--line); background:#fafbf8; color:var(--muted); font-size:10px; }
 .production-launcher-foot b { color:var(--green); }
-.production-launcher-foot a { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; }
-.production-launcher-foot a span { font-size:16px; line-height:1; }
+.production-launcher-action { display:inline-flex; align-items:center; gap:5px; color:var(--green); font-size:11px; font-weight:700; }
+.production-launcher-action span { font-size:16px; line-height:1; }
 
 .production-launcher[data-production-type="ROBOQBO"],.production-group[data-production-type="ROBOQBO"] { border-top-color:#2b7d68; }
 .production-launcher[data-production-type="INVASETTAMENTO"],.production-group[data-production-type="INVASETTAMENTO"] { border-top-color:#527e91; }
