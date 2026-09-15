@@ -155,8 +155,6 @@ class ProduzioneSemplificataService:
         business_mutex()
         from produzione.models import Ricetta
         ricetta = Ricetta.objects.select_for_update().get(pk=ricetta.pk)
-        if SessioneProduzioneSemplificata.objects.select_for_update().filter(tipo="SEMILAVORATO", stato__in=["PIANIFICATA", "APERTA"]).exists():
-            raise ValidationError("Il modulo Semilavorati ha già una sessione aperta.")
         code = cls._code(tipo="SEMILAVORATO", ricetta=ricetta)
         lot = cls._crea_lotto_pianificato(tipo="SEMILAVORATO", ricetta=ricetta, codice=code)
         return _record(SessioneProduzioneSemplificata(

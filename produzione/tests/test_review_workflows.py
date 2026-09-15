@@ -49,6 +49,26 @@ class ReviewWorkflowTests(TestCase):
         self.session.refresh_from_db()
         self.assertEqual(self.session.lotto.codice_lotto, "RBQB-CORRETTO")
 
+    def test_multiple_semifinished_sessions_can_run_together_with_distinct_lots(self):
+        with patch("produzione.services.semplificata.timezone.localdate", return_value=date(2026, 9, 15)):
+            first = Service.apri_semilavorato(
+                actor=self.actor, ricetta=self.demo["recipe"], numero_batch_previsti=1,
+            )
+            first = Service.avvia(actor=self.actor, sessione=first)
+            second = Service.apri_semilavorato(
+                actor=self.actor, ricetta=self.demo["recipe"], numero_batch_previsti=2,
+            )
+            second = Service.avvia(actor=self.actor, sessione=second)
+            third = Service.apri_semilavorato(
+                actor=self.actor, ricetta=self.demo["recipe"], numero_batch_previsti=1,
+            )
+        self.assertEqual(
+            [first.lotto.codice_lotto, second.lotto.codice_lotto, third.lotto.codice_lotto],
+            ["SLV260915-01", "SLV260915-02", "SLV260915-03"],
+        )
+        self.assertEqual(len({first.lotto_id, second.lotto_id, third.lotto_id}), 3)
+        self.assertEqual([first.stato, second.stato, third.stato], ["APERTA", "APERTA", "PIANIFICATA"])
+
     def test_batch_dates_survive_next_day_save_and_correction(self):
         rows = [{"numero": 1, "inizio": time(8), "fine": time(9), "esito_tracciato_termico": "C"}]
         with patch("produzione.services.semplificata.timezone.localdate", return_value=date(2026, 9, 10)):
