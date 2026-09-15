@@ -276,8 +276,8 @@ class ControlForm(forms.Form):
         ).order_by("numero")
         self.fields["batch_associati"].label_from_instance = lambda control: (
             f"Batch {control.numero}"
-            f" · {control.inizio.strftime('%H:%M') if control.inizio else 'inizio —'}"
-            f" / {control.fine.strftime('%H:%M') if control.fine else 'fine —'}"
+            f" · {timezone.localtime(control.inizio).strftime('%H:%M') if control.inizio else 'inizio —'}"
+            f" / {timezone.localtime(control.fine).strftime('%H:%M') if control.fine else 'fine —'}"
             f" · {control.esito}"
         )
         field_for_code = {
