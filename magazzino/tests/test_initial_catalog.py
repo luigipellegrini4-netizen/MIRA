@@ -1,11 +1,15 @@
 import json
 from unittest.mock import patch
 from decimal import Decimal
+from django.apps import apps
 from django.test import SimpleTestCase, TestCase
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from tempfile import TemporaryDirectory
-from magazzino.management.commands.inizializza_confetture import catalog, formulas, initialize, dependencies, reset_models, INVENTORY
+from magazzino.management.commands.inizializza_confetture import (
+    OPERATIONAL_LABELS, INVENTORY, catalog, dependencies, formulas, initialize,
+    reset_models,
+)
 from magazzino.models import Lotto, Movimento
 from produzione.models import Ricetta
 from produzione.services.demo_seed import seed_demo
@@ -16,7 +20,8 @@ from magazzino.services import Allocation, Position
 class InitialCatalogRulesTests(SimpleTestCase):
     def test_reset_order_and_preserved_configuration(self):
         models = reset_models(True)
-        self.assertEqual(len(models), 27)
+        expected = set(INVENTORY) | {apps.get_model(label) for label in OPERATIONAL_LABELS}
+        self.assertEqual(set(models), expected)
         positions = {model: index for index, model in enumerate(models)}
         for model in models:
             for field in model._meta.fields:

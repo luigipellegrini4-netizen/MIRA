@@ -5,8 +5,15 @@ from django.db import migrations, models
 
 def initialize_components(apps, schema_editor):
     lots = apps.get_model("magazzino", "Lotto").objects.using(schema_editor.connection.alias)
-    sessions = apps.get_model("produzione", "SessioneProduzioneSemplificata").objects.using(schema_editor.connection.alias)
-    ambiguous = sessions.filter(tipo="CONFEZIONAMENTO", stato="CHIUSA", quantita_finale_kg__gt=0).values("lotto_origine__lotto_prodotto_id")
+    session_model = apps.get_model("produzione", "SessioneProduzioneSemplificata")
+    sessions = session_model.objects.using(schema_editor.connection.alias)
+    # Durante la migrazione originale il campo si chiamava lotto_prodotto.
+    # I test di regressione richiamano anche questa funzione con lo stato più
+    # recente dei modelli, nel quale la fonte unica è invece il campo lotto.
+    lot_field = "lotto" if any(field.name == "lotto" for field in session_model._meta.fields) else "lotto_prodotto"
+    ambiguous = sessions.filter(
+        tipo="CONFEZIONAMENTO", stato="CHIUSA", quantita_finale_kg__gt=0,
+    ).values(f"lotto_origine__{lot_field}_id")
     lots.filter(models.Q(quantita_confezionata__gt=0) | models.Q(pk__in=ambiguous)).update(confezionamento_verificato=False)
     # Solo per i lotti mai confezionati la componente storica è certa.
     apps.get_model("magazzino", "Movimento").objects.using(schema_editor.connection.alias).filter(
