@@ -34,26 +34,37 @@
   </form>
 </section>
 {% endif %}
-{% if carrello_past_form %}
-<div id="controlli-carrelli" class="production-section-head archive-head"><div><p class="eyebrow">INVASETTAMENTO</p><h2>Controlli dei carrelli</h2></div><small>Registra le due fasi separatamente sullo stesso numero.</small></div>
-<div class="two-columns">
-  <section class="panel panel-body">
-    <h3>2ª pastorizzazione</h3><p class="muted">Prossimo carrello: <strong>{{ carrello_past_form.numero.value }}</strong>.</p>
-    <form method="post" action="{% url 'ui:simple_carrello_phase' session.pk 'pastorizzazione' %}" data-submit-once>
-      {% csrf_token %}{{ carrello_past_form.numero }}{{ carrello_past_form.numero.errors }}
-      <label for="{{ carrello_past_form.esito.id_for_label }}">{{ carrello_past_form.esito.label }}</label>{{ carrello_past_form.esito }}{{ carrello_past_form.esito.errors }}
-      <div class="form-footer"><button class="button primary" type="submit">Salva pastorizzazione</button></div>
-    </form>
-  </section>
-  <section class="panel panel-body">
-    <h3>Shock termico e vuoto</h3><p class="muted">Seleziona un carrello già pastorizzato e ancora da verificare.</p>
-    <form method="post" action="{% url 'ui:simple_carrello_phase' session.pk 'shock-vuoto' %}" data-submit-once>
-      {% csrf_token %}<label for="{{ carrello_shock_form.numero.id_for_label }}">{{ carrello_shock_form.numero.label }}</label>{{ carrello_shock_form.numero }}{{ carrello_shock_form.numero.errors }}
-      <label for="{{ carrello_shock_form.esito.id_for_label }}">{{ carrello_shock_form.esito.label }}</label>{{ carrello_shock_form.esito }}{{ carrello_shock_form.esito.errors }}
-      <div class="form-footer"><button class="button primary" type="submit">Salva shock e vuoto</button></div>
-    </form>
-  </section>
-</div>
+{% if session.tipo == 'INVASETTAMENTO' %}
+<section id="controlli-carrelli" class="panel cart-controls space-top">
+  <div class="panel-head"><div><p class="eyebrow">INVASETTAMENTO</p><h2>Controlli dei carrelli</h2><small>Ogni carrello usa lo stesso numero per entrambe le verifiche.</small></div><span class="counter">{{ carrelli|length }} carrelli</span></div>
+  {% if carrello_past_form %}
+  <div class="cart-control-flow">
+    <div class="cart-control-step">
+      <span class="cart-step-number" aria-hidden="true">1</span>
+      <div class="cart-step-content"><h3>Registra la 2ª pastorizzazione</h3><p>Questo crea il <strong>carrello {{ carrello_past_form.numero.value }}</strong>. Scegli l'esito della pastorizzazione e salvalo.</p>
+        <form method="post" action="{% url 'ui:simple_carrello_phase' session.pk 'pastorizzazione' %}" data-submit-once>
+          {% csrf_token %}{{ carrello_past_form.numero }}{{ carrello_past_form.numero.errors }}
+          <div class="cart-step-fields"><div><label for="{{ carrello_past_form.esito.id_for_label }}">Esito 2ª pastorizzazione</label>{{ carrello_past_form.esito }}{{ carrello_past_form.esito.errors }}</div><button class="button primary" type="submit">Registra carrello {{ carrello_past_form.numero.value }}</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="cart-control-step {% if not carrelli_pendenti %}waiting{% endif %}">
+      <span class="cart-step-number" aria-hidden="true">2</span>
+      <div class="cart-step-content"><h3>Completa shock termico e vuoto</h3>
+        {% if carrelli_pendenti %}<p><strong>In attesa: {{ carrelli_pendenti|length }}</strong>. Seleziona uno dei carrelli già pastorizzati, poi registra il secondo esito.</p>
+          <form method="post" action="{% url 'ui:simple_carrello_phase' session.pk 'shock-vuoto' %}" data-submit-once>
+            {% csrf_token %}<div class="cart-step-fields"><div><label for="{{ carrello_shock_form.numero.id_for_label }}">Carrello da completare</label>{{ carrello_shock_form.numero }}{{ carrello_shock_form.numero.errors }}</div><div><label for="{{ carrello_shock_form.esito.id_for_label }}">Esito shock termico e vuoto</label>{{ carrello_shock_form.esito }}{{ carrello_shock_form.esito.errors }}</div><button class="button primary" type="submit">Completa controllo</button></div>
+          </form>
+        {% else %}<p class="muted">Nessun carrello in attesa. Registra prima la pastorizzazione di un nuovo carrello.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="cart-status-head"><h3>Stato di ogni carrello</h3><small>C = conforme · NC = non conforme · NA = non applicabile. Un esito NC o NA resta registrato e non interrompe la produzione.</small></div>
+  <div class="table-wrap"><table class="cart-status-table"><thead><tr><th>Carrello</th><th>2ª pastorizzazione</th><th>Shock termico e vuoto</th><th>Situazione</th></tr></thead><tbody>
+    {% for c in carrelli %}<tr><td><strong>Carrello {{ c.numero }}</strong></td><td><span class="pill {% if c.esito_pastorizzazione != 'C' %}amber{% endif %}">{{ c.esito_pastorizzazione|default:'Da registrare' }}</span></td><td><span class="pill {% if c.esito_shock_vuoto != 'C' %}amber{% endif %}">{{ c.esito_shock_vuoto|default:'Da registrare' }}</span></td><td>{% if c.completo %}<strong>Completato</strong><small>Esito complessivo: {{ c.esito }}</small>{% elif not c.esito_pastorizzazione %}<strong class="cart-pending">In attesa di pastorizzazione</strong>{% else %}<strong class="cart-pending">In attesa di shock e vuoto</strong>{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="empty">Nessun carrello registrato. Inizia dalla 2ª pastorizzazione.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
 {% endif %}
 {% for control_table in control_tables %}<section class="panel{% if batch_formset or not forloop.first %} space-top{% endif %}">
   <div class="panel-head"><h2>{{ control_table.title }}</h2><span class="counter">{{ control_table.rows|length }}</span></div>
@@ -76,7 +87,7 @@
   </div>
 </section>{% endfor %}
 {% if ncs %}<section class="panel"><div class="panel-head"><h2>Non conformità</h2></div><div class="panel-body">{% for n in ncs %}<p><strong>NC {{ n.pk }} · {{ n.get_stato_display }}</strong><br>{{ n.descrizione }}</p>{% endfor %}</div></section>{% endif %}
-{% if session.riepilogo_finale %}<section class="panel"><div class="panel-head"><h2>Riepilogo finale</h2></div><div class="panel-body"><p>Buoni {{ session.riepilogo_finale.vasetti_buoni }} · Scarti {{ session.riepilogo_finale.vasetti_scartati }} · Quarantena {{ session.riepilogo_finale.vasetti_quarantena }}</p><p><strong>Quantità finale {{ session.riepilogo_finale.quantita_finale_kg|floatformat:3 }} kg · Resa {{ session.riepilogo_finale.resa_percentuale|floatformat:2 }}%</strong></p></div></section>{% endif %}
+{% if session.riepilogo_finale %}<section class="panel"><div class="panel-head"><h2>Riepilogo finale</h2></div><div class="panel-body"><p>Buoni {{ session.riepilogo_finale.vasetti_buoni }} · Scarti {{ session.riepilogo_finale.vasetti_scartati }}{% if session.riepilogo_finale.vasetti_quarantena %} · Quarantena {{ session.riepilogo_finale.vasetti_quarantena }}{% endif %}</p><p><strong>Quantità finale {{ session.riepilogo_finale.quantita_finale_kg|floatformat:3 }} kg · Resa {{ session.riepilogo_finale.resa_percentuale|floatformat:2 }}%</strong></p></div></section>{% endif %}
 {% if session.stato == 'APERTA' and session.tipo == 'INVASETTAMENTO' or session.stato == 'APERTA' and session.tipo == 'ETICHETTATURA' or session.stato == 'APERTA' and session.tipo == 'CONFEZIONAMENTO' or session.stato == 'APERTA' and session.prelievo_ricetta_registrato %}
 <section class="panel panel-body space-top">
   <h2>Serve altro materiale?</h2>

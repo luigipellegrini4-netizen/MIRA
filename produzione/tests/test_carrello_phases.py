@@ -45,17 +45,15 @@ class CarrelloPhaseTests(TestCase):
         self.assertTrue(shock.completo)
         self.assertEqual(shock.esito, "NC")
 
-    def test_page_shows_distinct_registration_forms_and_tables(self):
+    def test_page_shows_distinct_registration_forms_and_carrello_summary(self):
         self.client.force_login(self.actor)
         response = self.client.get(reverse("ui:simple_session", args=[self.filling.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Salva pastorizzazione")
-        self.assertContains(response, "Salva shock e vuoto")
-        self.assertEqual(len(response.context["control_tables"]), 2)
-        self.assertEqual(
-            [table["phase_code"] for table in response.context["control_tables"]],
-            ["PASTORIZZAZIONE", "SHOCK_VUOTO"],
-        )
+        self.assertContains(response, "Registra la 2ª pastorizzazione")
+        self.assertContains(response, "Completa shock termico e vuoto")
+        self.assertContains(response, "Stato di ogni carrello")
+        self.assertEqual(response.context["carrelli"], [])
+        self.assertEqual(response.context["control_tables"], [])
 
     def test_partial_carrello_cannot_be_closed(self):
         Service.registra_fase_carrello(
@@ -64,7 +62,7 @@ class CarrelloPhaseTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "Completare 2ª pastorizzazione"):
             Service.chiudi_invasettamento(
                 actor=self.actor, sessione=self.filling,
-                vasetti_buoni=0, vasetti_scartati=0, vasetti_quarantena=0,
+                vasetti_buoni=0, vasetti_scartati=0,
                 capsule_difettose=0, peso_netto_g=Decimal("230"),
                 vasetti_giacenza=(), capsule_giacenza=(),
                 destinazione=Position(self.demo["locations"]["MAG"].pk),

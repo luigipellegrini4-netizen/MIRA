@@ -506,7 +506,7 @@ class ProduzioneSemplificataService:
     @staticmethod
     @transaction.atomic
     def chiudi_invasettamento(*, actor, sessione, vasetti_buoni, vasetti_scartati,
-                              vasetti_quarantena, capsule_difettose, peso_netto_g,
+                              capsule_difettose, peso_netto_g,
                               vasetti_giacenza, capsule_giacenza, destinazione):
         from magazzino.models import Movimento
         from magazzino.services import MovementService
@@ -516,7 +516,7 @@ class ProduzioneSemplificataService:
             raise ValidationError("La sessione di invasettamento non è aperta.")
         if any(not control.completo for control in current.controlli.filter(tipo="CARRELLO")):
             raise ValidationError("Completare 2ª pastorizzazione e shock termico/vuoto per ogni carrello prima di chiudere.")
-        vasetti_totali = vasetti_buoni + vasetti_scartati + vasetti_quarantena
+        vasetti_totali = vasetti_buoni + vasetti_scartati
         ProduzioneSemplificataService._consuma_giacenze(
             actor=actor, sessione=current, giacenze=vasetti_giacenza, quantita=vasetti_totali,
             note=f"Vasetti utilizzati nella chiusura {current.lotto.codice_lotto}",
@@ -528,7 +528,7 @@ class ProduzioneSemplificataService:
         )
         summary = _record(RiepilogoSessioneSemplificata(
             sessione=current, vasetti_buoni=vasetti_buoni, vasetti_scartati=vasetti_scartati,
-            vasetti_quarantena=vasetti_quarantena, capsule_difettose=capsule_difettose,
+            capsule_difettose=capsule_difettose,
             peso_netto_g=peso_netto_g, registrato_da=actor,
         ))
         lot = current.lotto

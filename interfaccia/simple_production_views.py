@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction, connection
 from django.db.models import Sum, F
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from datetime import datetime
@@ -134,6 +135,8 @@ def session(request, pk):
         "postazione__risorsa", "ricetta__articolo", "lotto", "lotto_origine__lotto"
     ), pk=pk)
     controls = list(obj.controlli.prefetch_related("associazioni_batch__batch"))
+    carrelli = [control for control in controls if control.tipo == "CARRELLO"] if obj.tipo == "INVASETTAMENTO" else []
+    carrelli_pendenti = [control for control in carrelli if control.esito_pastorizzazione and not control.esito_shock_vuoto]
     ncs = list(obj.non_conformita_semplificate.select_related("controllo"))
     nonconforming_control_ids = {control.pk for control in controls if control.esito == "NC"}
     incomplete_count = sum(not control.completo for control in controls)
@@ -228,10 +231,7 @@ def session(request, pk):
             ("BATCH", "ROBOQBO_BATCH", "Controlli batch registrati", None),
             ("TANK", "ROBOQBO_TANK", "Controlli tank", None),
         ],
-        "INVASETTAMENTO": [
-            ("CARRELLO", "INVASETTAMENTO_CARRELLO", "2ª pastorizzazione", "PASTORIZZAZIONE"),
-            ("CARRELLO", "INVASETTAMENTO_CARRELLO", "Shock termico e vuoto", "SHOCK_VUOTO"),
-        ],
+        "INVASETTAMENTO": [],
     }.get(obj.tipo, [])
     configured_ambits = [ambit for _control_type, ambit, _title, _phase_code in control_definitions]
     configurations = ConfigurazioneControlloSemplificato.objects.filter(
@@ -269,7 +269,8 @@ def session(request, pk):
         "moca_articles": moca_articles, "selected_moca_ids": selected_moca_ids,
         "moca_stock_groups": moca_stock_groups, "control_tables": control_tables,
         "carrello_past_form": carrello_past_form,
-        "carrello_shock_form": carrello_shock_form})
+        "carrello_shock_form": carrello_shock_form,
+        "carrelli": carrelli, "carrelli_pendenti": carrelli_pendenti})
 
 
 @permitted("auth.can_execute_production")
@@ -448,7 +449,7 @@ def carrello_phase(request, pk, fase):
             messages.success(request, "Controllo carrello registrato.")
     else:
         messages.error(request, "Scegliere il carrello e l'esito del controllo.")
-    return redirect("ui:simple_session", pk=obj.pk)
+    return redirect(reverse("ui:simple_session", args=[obj.pk]) + "#controlli-carrelli")
 
 
 @permitted("auth.can_open_nc")

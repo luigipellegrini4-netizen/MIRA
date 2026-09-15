@@ -424,7 +424,6 @@ class SimpleNCCloseForm(forms.Form):
 class SummaryForm(forms.Form):
     vasetti_buoni = forms.IntegerField(min_value=0)
     vasetti_scartati = forms.IntegerField(min_value=0)
-    vasetti_quarantena = forms.IntegerField(min_value=0)
     capsule_difettose = forms.IntegerField(min_value=0)
     peso_netto_g = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6)
     destinazione = forms.ModelChoiceField(queryset=Ubicazione.objects.none(), label="Ubicazione lotto invasettato")
@@ -458,9 +457,9 @@ class SummaryForm(forms.Form):
                 self.add_error(f"{prefix}_giacenza", "Uno dei lotti non appartiene al tipo MOCA selezionato.")
         if data.get("vasetti_articolo") and data.get("vasetti_articolo") == data.get("capsule_articolo"):
             self.add_error("capsule_articolo", "Vasetti e capsule devono essere articoli distinti.")
-        if sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati", "vasetti_quarantena")) == 0:
+        if sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati")) == 0:
             self.add_error("vasetti_buoni", "Indicare almeno un vasetto prodotto.")
-        jars = sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati", "vasetti_quarantena"))
+        jars = sum(data.get(field) or 0 for field in ("vasetti_buoni", "vasetti_scartati"))
         caps = jars + (data.get("capsule_difettose") or 0)
         for prefix, required in (("vasetti", jars), ("capsule", caps)):
             stocks = data.get(f"{prefix}_giacenza")
