@@ -66,6 +66,39 @@ class SessioneProduzioneSemplificata(ValidatedModel):
 
     @property
     def quantita_iniziale_kg(self):
+        if self.tipo in {self.Tipo.SEMILAVORATO, self.Tipo.ROBOQBO}:
+            weight_per_batch = self.ricetta.righe.filter(
+                articolo__unita_misura="KG"
+            ).aggregate(t=models.Sum("quantita"))["t"] or Decimal("0")
+            return weight_per_batch * (self.batch_previsti or 0)
+        if self.tipo == self.Tipo.INVASETTAMENTO and self.lotto_origine_id:
+            return self.lotto_origine.quantita_uscita_kg
+        return Decimal("0")
+
+    @property
+    def quantita_uscita_kg(self):
+        if self.tipo == self.Tipo.ROBOQBO:
+            # RoboQbo non registra la massa in uscita: vale quella teorica in ingresso.
+            return self.quantita_iniziale_kg
+        if self.tipo == self.Tipo.SEMILAVORATO:
+            return self.quantita_finale_kg or Decimal("0")
+        return Decimal("0")
+
+    @property
+    def quantita_iniziale_pz(self):
+        if self.tipo in {self.Tipo.ETICHETTATURA, self.Tipo.CONFEZIONAMENTO} and self.lotto_origine_id:
+            return self.lotto_origine.quantita_uscita_pz
+        return Decimal("0")
+
+    @property
+    def quantita_uscita_pz(self):
+        if self.tipo in {self.Tipo.INVASETTAMENTO, self.Tipo.ETICHETTATURA, self.Tipo.CONFEZIONAMENTO}:
+            if self.ricetta.articolo.unita_misura == "PZ":
+                return self.quantita_finale_kg or Decimal("0")
+        return Decimal("0")
+
+    @property
+    def quantita_prelevata_kg(self):
         return self.prelievi.filter(
             lotto__articolo__unita_misura="KG"
         ).aggregate(t=models.Sum("quantita_kg"))["t"] or Decimal("0")

@@ -4,8 +4,10 @@ from django.test import TestCase
 from django.urls import reverse
 from decimal import Decimal
 
+from anagrafiche.models import Articolo
 from interfaccia.simple_production_forms import CarrelloPhaseForm
 from magazzino.services import Position
+from produzione.models import Ricetta, SessioneProduzioneSemplificata
 from produzione.services import ProduzioneSemplificataService as Service
 from produzione.services.demo_seed import seed_demo
 
@@ -20,6 +22,17 @@ class CarrelloPhaseTests(TestCase):
             actor=self.actor, lotto_origine=roboqbo, igienizzazione_confermata=True,
         )
         Service.avvia(actor=self.actor, sessione=self.filling)
+
+    def test_recipe_weight_flows_to_filling_without_material_withdrawals(self):
+        roboqbo = self.filling.lotto_origine
+        self.assertEqual(roboqbo.quantita_prelevata_kg, Decimal("0"))
+        self.assertEqual(roboqbo.quantita_iniziale_kg, Decimal("10.05"))
+        self.assertEqual(roboqbo.quantita_uscita_kg, Decimal("10.05"))
+        self.assertEqual(self.filling.quantita_iniziale_kg, Decimal("10.05"))
+        semifinished = Service.apri_semilavorato(
+            actor=self.actor, ricetta=self.demo["recipe"], numero_batch_previsti=3,
+        )
+        self.assertEqual(semifinished.quantita_iniziale_kg, Decimal("30.15"))
 
     def test_phases_are_recorded_separately_on_one_carrello(self):
         with self.assertRaises(ValidationError):
@@ -77,3 +90,22 @@ class CarrelloPhaseTests(TestCase):
         controls = list(self.filling.controlli.filter(tipo="CARRELLO"))
         self.assertEqual(len(controls), 1)
         self.assertEqual((controls[0].esito_pastorizzazione, controls[0].esito_shock_vuoto), ("C", "C"))
+
+
+class SimpleQuantityFlowTests(TestCase):
+    def test_piece_count_replaces_weight_after_filling(self):
+        article = Articolo(unita_misura="PZ")
+        recipe = Ricetta(articolo=article)
+        filling = SessioneProduzioneSemplificata(
+            pk=101, tipo="INVASETTAMENTO", ricetta=recipe, quantita_finale_kg=Decimal("600"),
+        )
+        labeling = SessioneProduzioneSemplificata(
+            pk=102, tipo="ETICHETTATURA", ricetta=recipe, lotto_origine=filling,
+            quantita_finale_kg=Decimal("480"),
+        )
+        packaging = SessioneProduzioneSemplificata(
+            tipo="CONFEZIONAMENTO", ricetta=recipe, lotto_origine=labeling,
+        )
+        self.assertEqual(labeling.quantita_iniziale_pz, Decimal("600"))
+        self.assertEqual(packaging.quantita_iniziale_pz, Decimal("480"))
+        self.assertEqual(labeling.quantita_iniziale_kg, Decimal("0"))

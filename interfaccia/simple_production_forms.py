@@ -517,7 +517,11 @@ class LabelingSummaryForm(forms.Form):
     lotto_origine_display = forms.CharField(label="Lotto invasettato selezionato", disabled=True)
     quantita_disponibile_display = forms.CharField(label="Quantità disponibile del lotto", disabled=True)
     quantita_finale_kg = forms.DecimalField(min_value=0.000001, max_digits=18, decimal_places=6, label="Quantità etichettata")
-    data_scadenza = forms.DateField(label="Data di scadenza", widget=forms.DateInput(attrs={"type": "date"}))
+    data_scadenza = forms.DateField(
+        label="Data di scadenza",
+        help_text="Proposta: due anni da oggi. Puoi modificarla.",
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
+    )
     destinazione = forms.ModelChoiceField(queryset=Ubicazione.objects.none(), label="Ubicazione prodotto finito")
     scaffale = forms.CharField(required=False, max_length=30)
     piano = forms.CharField(required=False, max_length=30)
@@ -537,7 +541,12 @@ class LabelingSummaryForm(forms.Form):
         )
         self.fields["quantita_finale_kg"].label = f"Quantità etichettata ({source_lot.articolo.unita_misura})"
         self.fields["destinazione"].queryset = Ubicazione.objects.filter(attiva=True)
-        self.fields["data_scadenza"].initial = source_lot.data_scadenza
+        today = timezone.localdate()
+        try:
+            proposed_expiry = today.replace(year=today.year + 2)
+        except ValueError:  # Il 29 febbraio diventa il 28 febbraio se l'anno di arrivo non è bisestile.
+            proposed_expiry = today.replace(year=today.year + 2, day=28)
+        self.fields["data_scadenza"].initial = proposed_expiry
 
     def clean(self):
         data = super().clean()
