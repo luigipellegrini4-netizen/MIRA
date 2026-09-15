@@ -173,10 +173,15 @@ def lot_detail(request, pk):
         tipo__in=[Movimento.Tipo.CARICO, Movimento.Tipo.PRODUZIONE]
     ).aggregate(total=Sum("quantita"))["total"] or 0
     outgoing_quantity = lot.movimenti.filter(
-        tipo__in=[Movimento.Tipo.CONSUMO, Movimento.Tipo.VENDITA,
-                  Movimento.Tipo.SCARTO, Movimento.Tipo.SCARICO]
+        tipo__in=[Movimento.Tipo.CONSUMO, Movimento.Tipo.SCARTO, Movimento.Tipo.SCARICO]
     ).aggregate(total=Sum("quantita"))["total"] or 0
-    sales_movements = list(lot.movimenti.filter(tipo="VENDITA").select_related(
+    from vendite.models import RigaVendita
+    outgoing_quantity += sum(
+        (line.quantita_effettiva for line in RigaVendita.objects.filter(
+            movimento__lotto=lot,
+        ).select_related("movimento")), 0,
+    )
+    sales_movements = list(lot.movimenti.filter(tipo="VENDITA", riga_vendita__isnull=False).select_related(
         "riga_vendita__vendita__cliente", "riga_vendita__vendita__registrata_da",
         "ubicazione_origine",
     ).order_by("-data_ora", "-pk"))

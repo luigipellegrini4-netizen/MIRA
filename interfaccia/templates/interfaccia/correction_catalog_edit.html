@@ -1,0 +1,10 @@
+{% extends 'interfaccia/base.html' %}
+{% block title %}{{ label }} #{{ record.pk }} · MIRA{% endblock %}
+{% block breadcrumb %}Amministrazione / Correzioni / {{ label }}{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'ui:correction_table' app_label model_name %}">← {{ label }}</a>
+<div class="page-head"><div><p class="eyebrow">CORREZIONE MOTIVATA</p><h1>{{ label }} #{{ record.pk }}</h1><p class="muted">{{ record }}</p></div></div>
+{% if not editable %}<div class="notice">Questo record è protetto o influenza quantità e genealogia. La scheda registra un'annotazione storica; il dato originale resta intatto. Per una quantità errata usa una rettifica di giacenza o vendita.</div>{% endif %}
+<section class="panel form-panel"><form method="post" data-submit-once>{% csrf_token %}{% if form %}{{ form.as_p }}{% endif %}{{ reason_form.as_p }}<div class="form-footer"><a class="button secondary" href="{% url 'ui:correction_table' app_label model_name %}">Annulla</a><button class="button primary" type="submit">{% if editable %}Salva correzione{% else %}Registra annotazione{% endif %}</button></div></form></section>
+<section class="panel space-top"><div class="panel-head"><h2>Storico</h2></div>{% for change in history %}<details class="list-row"><summary><strong>{{ change.eseguita_il|date:'d/m/Y H:i' }} · {{ change.eseguita_da.username }}</strong> — {{ change.motivazione }}</summary><div class="two-columns space-top"><div><h3>Prima</h3>{% for name, value in change.valori_precedenti.items %}<div>{{ name }}: <strong>{{ value|default_if_none:'—' }}</strong></div>{% endfor %}</div><div><h3>Dopo</h3>{% for name, value in change.valori_nuovi.items %}<div>{{ name }}: <strong>{{ value|default_if_none:'—' }}</strong></div>{% endfor %}</div></div></details>{% empty %}<div class="empty">Nessuna correzione registrata.</div>{% endfor %}</section>
+{% endblock %}

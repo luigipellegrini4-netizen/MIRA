@@ -27,7 +27,7 @@
 <div class="production-section-head archive-head"><div><p class="eyebrow">ARCHIVIO</p><h2>Lavorazioni per fase</h2></div><small>Apri una sezione per vedere le produzioni registrate.</small></div>
 <div class="production-groups">
 {% for group in production_groups %}
-  <details class="panel production-group" data-production-type="{{ group.code }}"{% if group.active_count %} open{% endif %}>
+  <details class="panel production-group" data-production-type="{{ group.code }}">
     <summary class="production-summary">
       <span class="production-summary-title"><span class="production-phase small">0{{ group.phase }}</span><span class="production-marker small">{{ group.marker }}</span><span><strong>{{ group.name }}</strong><small>{{ group.description }}</small></span></span>
       <span class="production-summary-meta">

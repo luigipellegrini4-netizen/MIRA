@@ -1,5 +1,5 @@
 {% extends 'interfaccia/base.html' %}{% block title %}{{ session.lotto.codice_lotto }} · MIRA{% endblock %}{% block content %}
-<a class="back" href="{% url 'ui:simple_sessions' %}">← Produzione</a><div class="page-head"><div><p class="eyebrow">{{ session.get_tipo_display }}</p><h1>{{ session.lotto.codice_lotto }}</h1><p>{{ session.ricetta.articolo }}{% if session.postazione %} · {{ session.postazione.risorsa.nome }}{% endif %}{% if session.lotto_origine %} · origine <a href="{% url 'ui:simple_session' session.lotto_origine.pk %}">{{ session.lotto_origine }}</a>{% endif %}</p></div>{% if session.stato == 'APERTA' %}<div>{% if session.tipo == 'ROBOQBO' and not session.prelievo_ricetta_registrato %}<a class="button secondary" href="{% url 'ui:simple_picking' session.pk %}">Prelievo materiali</a>{% elif session.tipo == 'SEMILAVORATO' and not session.prelievo_ricetta_registrato %}<a class="button secondary" href="{% url 'ui:simple_picking' session.pk %}">Prelievo materiali</a>{% endif %} {% if session.tipo != 'ETICHETTATURA' and session.tipo != 'CONFEZIONAMENTO' %}<a class="button secondary" href="{% url 'ui:simple_control' session.pk %}">Controllo</a>{% endif %} <a class="button secondary" href="{% url 'ui:simple_nc' session.pk %}">Apri NC</a> <a class="button primary" href="{% url 'ui:simple_close' session.pk %}">Chiudi</a></div>{% endif %}</div>
+<a class="back" href="{% url 'ui:simple_sessions' %}">← Produzione</a><div class="page-head"><div><p class="eyebrow">{{ session.get_tipo_display }}</p><h1>{{ session.lotto.codice_lotto }}</h1><p>{{ session.ricetta.articolo }}{% if session.postazione %} · {{ session.postazione.risorsa.nome }}{% endif %}{% if session.lotto_origine %} · origine <a href="{% url 'ui:simple_session' session.lotto_origine.pk %}">{{ session.lotto_origine }}</a>{% endif %}</p></div>{% if session.stato == 'APERTA' %}<div>{% if session.tipo == 'ROBOQBO' and not session.prelievo_ricetta_registrato %}<a class="button secondary" href="{% url 'ui:simple_picking' session.pk %}">Prelievo materiali</a>{% elif session.tipo == 'SEMILAVORATO' and not session.prelievo_ricetta_registrato %}<a class="button secondary" href="{% url 'ui:simple_picking' session.pk %}">Prelievo materiali</a>{% endif %} {% if session.tipo == 'INVASETTAMENTO' %}<a class="button secondary" href="#controlli-carrelli">Controlli carrelli</a>{% elif session.tipo != 'ETICHETTATURA' and session.tipo != 'CONFEZIONAMENTO' %}<a class="button secondary" href="{% url 'ui:simple_control' session.pk %}">Controllo</a>{% endif %} <a class="button secondary" href="{% url 'ui:simple_nc' session.pk %}">Apri NC</a> <a class="button primary" href="{% url 'ui:simple_close' session.pk %}">Chiudi</a></div>{% endif %}</div>
 {% if session.stato == 'PIANIFICATA' %}<div class="notice"><strong>Produzione non ancora iniziata.</strong><div class="actions space-top"><a class="button primary" href="{% url 'ui:simple_lifecycle' session.pk 'avvia' %}">Avvia produzione</a>{% if perms.auth.can_cancel_unstarted_work %} <a class="button secondary danger" href="{% url 'ui:simple_lifecycle' session.pk 'annulla' %}">Annulla produzione</a>{% endif %}</div></div>{% endif %}
 <div class="stats"><div class="stat"><span>Stato</span><strong>{{ session.get_stato_display }}</strong></div><div class="stat"><span>Materie iniziali in peso</span><strong>{{ session.quantita_iniziale_kg }} kg</strong></div><div class="stat"><span>Controlli</span><strong>{{ controls|length }}</strong></div><div class="stat"><span>NC</span><strong>{{ nc_count }}</strong></div></div>
 {% if session.tipo == 'SEMILAVORATO' %}<div class="notice">Batch previsti: <strong>{{ session.numero_lavorazioni_previste }}</strong>.{% if session.quantita_finale_kg %} Quantità finale: <strong>{{ session.quantita_finale_kg }} kg</strong>. Resa: <strong>{% widthratio session.quantita_finale_kg session.quantita_iniziale_kg 100 %}%</strong>.{% endif %}</div>{% endif %}
@@ -34,11 +34,32 @@
   </form>
 </section>
 {% endif %}
+{% if carrello_past_form %}
+<div id="controlli-carrelli" class="production-section-head archive-head"><div><p class="eyebrow">INVASETTAMENTO</p><h2>Controlli dei carrelli</h2></div><small>Registra le due fasi separatamente sullo stesso numero.</small></div>
+<div class="two-columns">
+  <section class="panel panel-body">
+    <h3>2ª pastorizzazione</h3><p class="muted">Prossimo carrello: <strong>{{ carrello_past_form.numero.value }}</strong>.</p>
+    <form method="post" action="{% url 'ui:simple_carrello_phase' session.pk 'pastorizzazione' %}" data-submit-once>
+      {% csrf_token %}{{ carrello_past_form.numero }}{{ carrello_past_form.numero.errors }}
+      <label for="{{ carrello_past_form.esito.id_for_label }}">{{ carrello_past_form.esito.label }}</label>{{ carrello_past_form.esito }}{{ carrello_past_form.esito.errors }}
+      <div class="form-footer"><button class="button primary" type="submit">Salva pastorizzazione</button></div>
+    </form>
+  </section>
+  <section class="panel panel-body">
+    <h3>Shock termico e vuoto</h3><p class="muted">Seleziona un carrello già pastorizzato e ancora da verificare.</p>
+    <form method="post" action="{% url 'ui:simple_carrello_phase' session.pk 'shock-vuoto' %}" data-submit-once>
+      {% csrf_token %}<label for="{{ carrello_shock_form.numero.id_for_label }}">{{ carrello_shock_form.numero.label }}</label>{{ carrello_shock_form.numero }}{{ carrello_shock_form.numero.errors }}
+      <label for="{{ carrello_shock_form.esito.id_for_label }}">{{ carrello_shock_form.esito.label }}</label>{{ carrello_shock_form.esito }}{{ carrello_shock_form.esito.errors }}
+      <div class="form-footer"><button class="button primary" type="submit">Salva shock e vuoto</button></div>
+    </form>
+  </section>
+</div>
+{% endif %}
 {% for control_table in control_tables %}<section class="panel{% if batch_formset or not forloop.first %} space-top{% endif %}">
   <div class="panel-head"><h2>{{ control_table.title }}</h2><span class="counter">{{ control_table.rows|length }}</span></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>N.</th>{% if control_table.show_batch_associations %}<th>Batch associati</th>{% endif %}{% for column in control_table.columns %}<th>{{ column.nome }}</th>{% endfor %}<th>Esito</th></tr></thead>
+      <thead><tr><th>N.</th>{% if control_table.show_batch_associations %}<th>Batch associati</th>{% endif %}{% for column in control_table.columns %}<th>{{ column.nome }}</th>{% endfor %}<th>{% if control_table.phase_code %}Stato della fase{% else %}Esito{% endif %}</th></tr></thead>
       <tbody>
         {% for c in control_table.rows %}
           <tr>
@@ -47,7 +68,7 @@
             {% for column in control_table.columns %}
               <td>{% if column.codice == 'INIZIO' %}{{ c.inizio|date:'H:i'|default:'—' }}{% elif column.codice == 'FINE' %}{{ c.fine|date:'H:i'|default:'—' }}{% elif column.codice == 'TRACCIATO' %}{{ c.esito_tracciato_termico|default:'—' }}{% elif column.codice == 'BRIX' %}{% if c.gradi_brix != None %}{{ c.gradi_brix|floatformat:'-3' }}{% else %}—{% endif %}{% elif column.codice == 'PH' %}{% if c.ph != None %}{{ c.ph|floatformat:'-3' }}{% else %}—{% endif %}{% elif column.codice == 'PASTORIZZAZIONE' %}{{ c.esito_pastorizzazione|default:'—' }}{% elif column.codice == 'SHOCK_VUOTO' %}{{ c.esito_shock_vuoto|default:'—' }}{% else %}—{% endif %}</td>
             {% endfor %}
-            <td><span class="pill {% if not c.conforme %}amber{% endif %}">{{ c.esito }}</span></td>
+            <td>{% if control_table.phase_code == 'PASTORIZZAZIONE' %}<span class="pill {% if c.esito_pastorizzazione != 'C' %}amber{% endif %}">{{ c.esito_pastorizzazione|default:'Da registrare' }}</span>{% elif control_table.phase_code == 'SHOCK_VUOTO' %}<span class="pill {% if c.esito_shock_vuoto != 'C' %}amber{% endif %}">{{ c.esito_shock_vuoto|default:'Da registrare' }}</span>{% else %}<span class="pill {% if not c.conforme %}amber{% endif %}">{{ c.esito }}</span>{% endif %}</td>
           </tr>
         {% empty %}<tr><td colspan="{{ control_table.colspan }}" class="empty">Nessun controllo registrato.</td></tr>{% endfor %}
       </tbody>

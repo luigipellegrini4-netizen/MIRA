@@ -24,6 +24,7 @@ INVENTORY = (Movimento, Giacenza, RicevimentoLotto, Lotto)
 
 
 OPERATIONAL_LABELS = (
+    "interfaccia.CorrezioneAmministrativa",
     "produzione.CicloProduzione", "produzione.Lavorazione", "produzione.InputLavorazione",
     "produzione.OutputLavorazione", "produzione.RisorsaLavorazione", "produzione.UnitaLavorazione",
     "produzione.PartecipazioneUnitaLavorazione", "produzione.TurnoOperativo", "produzione.PianoProduzione",

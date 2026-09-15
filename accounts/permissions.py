@@ -22,7 +22,7 @@ MODEL_MANAGERS = {
 # I permessi custom sono ancorati al ContentType auth.Group: non serve un
 # modello artificiale, né un CustomUser. La namespace è quindi auth.
 CAPABILITIES = {
-    "can_manage_backups": ("Esportare e ripristinare backup completi e azzerare dati", {A}),
+    "can_manage_backups": ("Gestire backup, azzeramento e correzioni amministrative", {A}),
     "can_manage_process_configuration": ("Gestire configurazione produzione", {A, RP}),
     "can_manage_quality_configuration": ("Gestire parametri qualità", {A, RQ}),
     "can_manage_required_controls": ("Gestire controlli richiesti", {A, RP, RQ}),

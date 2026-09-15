@@ -166,8 +166,9 @@ class GenealogyService:
                     "quantita": Decimal("0"), "unita_misura": movement.lotto.articolo.unita_misura,
                     "movimenti_ids": [],
                 })
-                destination["quantita"] += movement.quantita
+                destination["quantita"] += row.quantita_effettiva
                 destination["movimenti_ids"].append(movement.pk)
+                destination["movimenti_ids"].extend(row.rettifiche.values_list("movimento_id", flat=True))
             for destination in sales.values():
                 destination["quantita"] = str(destination["quantita"])
                 edges.append({"tipo": "VENDITA", "da": f"lotto:{destination['lotto_id']}",

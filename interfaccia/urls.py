@@ -7,6 +7,7 @@ from . import supplier_views
 from . import article_views
 from . import catalog_views
 from . import lot_views
+from . import correction_views
 from vendite import views as sales_views
 
 app_name = "ui"
@@ -38,6 +39,7 @@ urlpatterns = [
     path("produzione/<int:pk>/prelievo/", simple_production_views.picking, name="simple_picking"),
     path("produzione/<int:pk>/altro-prelievo/", simple_production_views.additional_picking, name="simple_additional_picking"),
     path("produzione/<int:pk>/controllo/", simple_production_views.control, name="simple_control"),
+    path("produzione/<int:pk>/controllo-carrello/<slug:fase>/", simple_production_views.carrello_phase, name="simple_carrello_phase"),
     path("produzione/<int:pk>/controlli-batch/", simple_production_views.batch_controls, name="simple_batch_controls"),
     path("produzione/<int:pk>/nc/", simple_production_views.nc, name="simple_nc"),
     path("produzione/<int:pk>/chiudi/", simple_production_views.close, name="simple_close"),
@@ -47,6 +49,15 @@ urlpatterns = [
     path("magazzino/movimenti/", views.movements, name="movimenti"),
     path("tracciabilita/", views.trace_search, name="trace_search"),
     path("configurazione/", csv_views.manage_csv, name="manage_csv"),
+    path("configurazione/correzioni/", correction_views.corrections, name="corrections"),
+    path("configurazione/correzioni/tabelle/", correction_views.correction_tables, name="correction_tables"),
+    path("configurazione/correzioni/tabelle/<slug:app_label>/<slug:model_name>/", correction_views.correction_table, name="correction_table"),
+    path("configurazione/correzioni/tabelle/<slug:app_label>/<slug:model_name>/<str:pk>/", correction_views.correct_catalog_record, name="correct_catalog_record"),
+    path("configurazione/correzioni/giacenze/", correction_views.correct_stock, name="correct_stock"),
+    path("configurazione/correzioni/vendite/<int:pk>/", correction_views.correct_sale, name="correct_sale"),
+    path("configurazione/correzioni/righe-vendita/<int:pk>/", correction_views.correct_sales_line, name="correct_sales_line"),
+    path("configurazione/correzioni/controlli/<int:pk>/", correction_views.correct_control, name="correct_control"),
+    path("configurazione/correzioni/lotti/<int:pk>/", correction_views.correct_lot, name="correct_lot"),
     path("configurazione/csv/scarica/<slug:kind>/", csv_views.download_csv, name="download_csv"),
     path("configurazione/backup/", csv_views.download_backup, name="download_backup"),
     path("configurazione/ripristino/", csv_views.restore, name="restore_backup"),

@@ -273,6 +273,43 @@ class ProduzioneSemplificataService:
 
     @staticmethod
     @transaction.atomic
+    def registra_fase_carrello(*, actor, sessione, fase, numero, esito):
+        """Registra le due verifiche in tempi distinti sullo stesso carrello."""
+        require_permission(actor, "can_execute_production")
+        current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
+        if current.tipo != "INVASETTAMENTO" or current.stato != "APERTA":
+            raise ValidationError("I controlli carrello richiedono un invasettamento aperto.")
+        fields = {
+            "pastorizzazione": "esito_pastorizzazione",
+            "shock-vuoto": "esito_shock_vuoto",
+        }
+        field = fields.get(fase)
+        if field is None or esito not in ControlloSessioneSemplificata.Esito.values:
+            raise ValidationError("Fase o esito del carrello non valido.")
+        if not isinstance(numero, int) or numero < 1:
+            raise ValidationError("Numero carrello non valido.")
+        controls = ControlloSessioneSemplificata.objects.select_for_update().filter(
+            sessione=current, tipo=ControlloSessioneSemplificata.Tipo.CARRELLO,
+        )
+        control = controls.filter(numero=numero).first()
+        if fase == "pastorizzazione":
+            next_number = (controls.order_by("-numero").values_list("numero", flat=True).first() or 0) + 1
+            if control is not None or numero != next_number:
+                raise ValidationError("La 2ª pastorizzazione richiede il prossimo numero di carrello.")
+            return _record(ControlloSessioneSemplificata(
+                sessione=current, tipo=ControlloSessioneSemplificata.Tipo.CARRELLO,
+                numero=numero, esito_pastorizzazione=esito, registrato_da=actor,
+            ))
+        if control is None or not control.esito_pastorizzazione:
+            raise ValidationError("Registrare prima la 2ª pastorizzazione del carrello.")
+        if control.esito_shock_vuoto:
+            raise ValidationError("Shock termico e vuoto sono già registrati per questo carrello.")
+        control.esito_shock_vuoto = esito
+        control.registrato_da = actor
+        return _record(control)
+
+    @staticmethod
+    @transaction.atomic
     def registra_tabella_batch(*, actor, sessione, righe):
         require_permission(actor, "can_execute_production")
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
@@ -477,6 +514,8 @@ class ProduzioneSemplificataService:
         current = SessioneProduzioneSemplificata.objects.select_for_update().get(pk=sessione.pk)
         if current.tipo != "INVASETTAMENTO" or current.stato != "APERTA":
             raise ValidationError("La sessione di invasettamento non è aperta.")
+        if any(not control.completo for control in current.controlli.filter(tipo="CARRELLO")):
+            raise ValidationError("Completare 2ª pastorizzazione e shock termico/vuoto per ogni carrello prima di chiudere.")
         vasetti_totali = vasetti_buoni + vasetti_scartati + vasetti_quarantena
         ProduzioneSemplificataService._consuma_giacenze(
             actor=actor, sessione=current, giacenze=vasetti_giacenza, quantita=vasetti_totali,

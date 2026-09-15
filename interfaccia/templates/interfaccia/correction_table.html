@@ -1,0 +1,9 @@
+{% extends 'interfaccia/base.html' %}
+{% block title %}{{ label }} · Correzioni · MIRA{% endblock %}
+{% block breadcrumb %}Amministrazione / Correzioni / {{ label }}{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'ui:correction_tables' %}">← Tabelle</a>
+<div class="page-head"><div><p class="eyebrow">TABELLA</p><h1>{{ label }}</h1><p class="muted">{% if editable %}I campi della scheda si possono correggere con una motivazione.{% else %}Questi record restano storici: puoi annotare l'errore e usare la rettifica dedicata quando disponibile.{% endif %}</p></div></div>
+<section class="panel form-panel"><form method="get"><label for="table-query">Cerca codice, descrizione o ID</label><input id="table-query" name="q" value="{{ q }}" maxlength="100"><div class="form-footer"><button class="button secondary" type="submit">Cerca</button></div></form></section>
+<section class="panel space-top"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Record</th><th></th></tr></thead><tbody>{% for record in records %}<tr><td>{{ record.pk }}</td><td>{{ record }}</td><td>{% if label == 'magazzino.Lotto' %}<a href="{% url 'ui:correct_lot' record.pk %}">Correggi →</a>{% elif label == 'magazzino.Giacenza' %}<a href="{% url 'ui:correct_stock' %}">Rettifica →</a>{% elif label == 'produzione.ControlloSessioneSemplificata' %}<a href="{% url 'ui:correct_control' record.pk %}">Correggi →</a>{% elif label == 'vendite.Vendita' %}<a href="{% url 'ui:correct_sale' record.pk %}">Correggi →</a>{% elif label == 'vendite.RigaVendita' %}<a href="{% url 'ui:correct_sales_line' record.pk %}">Correggi →</a>{% else %}<a href="{% url 'ui:correct_catalog_record' app_label model_name record.pk %}">{% if editable %}Correggi{% else %}Annota{% endif %} →</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="3">Nessun record trovato.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

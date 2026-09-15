@@ -315,6 +315,34 @@ class ControlForm(forms.Form):
         return data
 
 
+class CarrelloPhaseForm(forms.Form):
+    numero = forms.IntegerField(min_value=1, widget=forms.HiddenInput())
+    esito = forms.ChoiceField(
+        label="Esito", choices=[("", "Scegli esito"), ("C", "C"), ("NC", "NC"), ("NA", "NA")],
+    )
+
+    def __init__(self, *args, session, fase, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fase = fase
+        controls = list(session.controlli.filter(tipo="CARRELLO").order_by("numero"))
+        if fase == "pastorizzazione":
+            self.fields["numero"].initial = (controls[-1].numero if controls else 0) + 1
+        else:
+            pending = [control for control in controls
+                       if control.esito_pastorizzazione and not control.esito_shock_vuoto]
+            self.fields["numero"] = forms.TypedChoiceField(
+                choices=[("", "Scegli carrello"), *[(str(row.numero), f"Carrello {row.numero}") for row in pending]],
+                label="Carrello in attesa", coerce=int,
+            )
+        config_code = "PASTORIZZAZIONE" if fase == "pastorizzazione" else "SHOCK_VUOTO"
+        configuration = ConfigurazioneControlloSemplificato.objects.filter(
+            ambito="INVASETTAMENTO_CARRELLO", codice=config_code, attivo=True,
+        ).first()
+        self.fields["esito"].label = configuration.nome if configuration else (
+            "2ª pastorizzazione" if fase == "pastorizzazione" else "Shock termico e vuoto"
+        )
+
+
 class BatchControlLineForm(forms.Form):
     numero = forms.IntegerField(min_value=1, widget=forms.HiddenInput())
     inizio = forms.TimeField(required=False, label="Ora inizio", widget=forms.TimeInput(attrs={"type": "time"}))

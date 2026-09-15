@@ -9,7 +9,7 @@ from django.db import connection, transaction, IntegrityError
 from django.utils import timezone
 from .backup_validation import validate_records
 
-FORMAT = "MIRA_BACKUP_V3"
+FORMAT = "MIRA_BACKUP_V4"
 EXCLUDED = {"migrations.Migration"}
 
 
@@ -34,14 +34,27 @@ def read_backup(raw):
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise ValidationError("Il file non è un JSON MIRA valido.") from None
     expected = [m._meta.label for m in backup_models()]
-    if not isinstance(payload, dict) or payload.get("format") not in {FORMAT, "MIRA_BACKUP_V1", "MIRA_BACKUP_V2"} or payload.get("models") != expected:
+    if not isinstance(payload, dict) or payload.get("format") not in {FORMAT, "MIRA_BACKUP_V1", "MIRA_BACKUP_V2", "MIRA_BACKUP_V3"}:
         raise ValidationError("Il backup non è compatibile con questa versione di MIRA.")
+    # I backup precedenti non contengono gli storici introdotti in V4.
+    new_models = {"interfaccia.CorrezioneAmministrativa", "vendite.RettificaRigaVendita"}
+    old_models = [label for label in expected if label not in new_models]
+    if payload.get("models") == old_models and payload.get("format") != FORMAT:
+        if not isinstance(payload.get("counts"), dict):
+            raise ValidationError("Struttura del backup incompleta.")
+        payload["models"] = expected
+        for label in new_models:
+            payload["counts"][label] = 0
+    if payload.get("models") != expected:
+        raise ValidationError("Il backup è stato creato con un insieme diverso di tabelle MIRA.")
     if not isinstance(payload.get("records"), list) or not isinstance(payload.get("counts"), dict):
         raise ValidationError("Struttura del backup incompleta.")
     if payload["format"] == "MIRA_BACKUP_V1":
         upgrade_packaging_backup(payload)
     if payload["format"] == "MIRA_BACKUP_V2":
         upgrade_session_lot_backup(payload)
+    if payload["format"] == "MIRA_BACKUP_V3":
+        payload["format"] = FORMAT
     allowed = {model._meta.label_lower for model in backup_models()}
     actual = {label: 0 for label in expected}
     for record in payload["records"]:

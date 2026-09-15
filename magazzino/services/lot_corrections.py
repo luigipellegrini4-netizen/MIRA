@@ -12,7 +12,12 @@ class LotCorrectionService:
     @staticmethod
     @transaction.atomic
     def correct(*, actor, lotto, motivazione, **values):
-        require_permission(actor, "can_adjust_inventory")
+        # Il responsabile magazzino usa la scheda lotto ordinaria; l'area di
+        # correzione amministrativa è riservata al ruolo Amministratore.
+        if actor and actor.has_perm("auth.can_manage_backups"):
+            require_permission(actor, "can_manage_backups")
+        else:
+            require_permission(actor, "can_adjust_inventory")
         reason = (motivazione or "").strip()
         if not reason:
             raise ValidationError("La motivazione è obbligatoria.")

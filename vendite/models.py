@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.db.models import Sum
+
+from magazzino.models.protections import HistoricalModel
 
 
 class Cliente(models.Model):
@@ -40,3 +43,36 @@ class RigaVendita(models.Model):
 
     class Meta:
         ordering = ["pk"]
+
+    @property
+    def quantita_effettiva(self):
+        from decimal import Decimal
+        difference = self.rettifiche.aggregate(total=Sum("differenza"))["total"] or Decimal("0")
+        return self.movimento.quantita + difference
+
+
+class RettificaRigaVendita(HistoricalModel):
+    """Correzione di quantità che conserva movimento e riga originali."""
+
+    riga = models.ForeignKey(RigaVendita, on_delete=models.PROTECT, related_name="rettifiche")
+    movimento = models.OneToOneField("magazzino.Movimento", on_delete=models.PROTECT, related_name="rettifica_riga_vendita")
+    differenza = models.DecimalField(max_digits=18, decimal_places=6)
+    motivazione = models.TextField()
+    eseguita_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    eseguita_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-eseguita_il", "-pk"]
+        constraints = [models.CheckConstraint(condition=~models.Q(differenza=0), name="rettifica_vendita_non_zero")]
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if not self.motivazione.strip():
+            raise ValidationError({"motivazione": "La motivazione è obbligatoria."})
+        if self.movimento_id and self.riga_id:
+            if self.movimento.lotto_id != self.riga.movimento.lotto_id:
+                raise ValidationError("La rettifica deve usare lo stesso lotto della riga venduta.")
+            expected = "VENDITA" if self.differenza > 0 else "RETTIFICA"
+            if self.movimento.tipo != expected or self.movimento.quantita != abs(self.differenza):
+                raise ValidationError("Il movimento non coincide con la differenza di vendita.")

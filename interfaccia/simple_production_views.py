@@ -20,7 +20,7 @@ from produzione.models import (NonConformitaSessioneSemplificata,
                                PrelievoSessioneSemplificata,
                                SessioneProduzioneSemplificata)
 from produzione.services import ProduzioneSemplificataService
-from .simple_production_forms import (AdditionalPickingForm, BatchControlFormSet, ControlForm, NCForm, OpenFillingForm, OpenLabelingForm, OpenPackagingForm, OpenRoboQboForm,
+from .simple_production_forms import (AdditionalPickingForm, BatchControlFormSet, CarrelloPhaseForm, ControlForm, NCForm, OpenFillingForm, OpenLabelingForm, OpenPackagingForm, OpenRoboQboForm,
     OpenSemiFinishedForm, PickingForm, SemiFinishedPickingFormSet, SemiFinishedSummaryForm, SummaryForm,
     LabelingSummaryForm, PackagingSummaryForm, SimpleNCActionForm, SimpleNCCloseForm, SimpleNCTakeChargeForm, SimpleNCVerificationForm,
     article_ids_for_category)
@@ -218,15 +218,22 @@ def session(request, pk):
             control for control in controls
             if control.tipo != "BATCH" or control.numero > obj.numero_batch_previsti
         ]
+    carrello_past_form = carrello_shock_form = None
+    if obj.tipo == "INVASETTAMENTO" and obj.stato == "APERTA":
+        carrello_past_form = CarrelloPhaseForm(session=obj, fase="pastorizzazione")
+        carrello_shock_form = CarrelloPhaseForm(session=obj, fase="shock-vuoto")
     control_definitions = {
-        "SEMILAVORATO": [("SEMILAVORATO", "SEMILAVORATO", "Controlli semilavorato")],
+        "SEMILAVORATO": [("SEMILAVORATO", "SEMILAVORATO", "Controlli semilavorato", None)],
         "ROBOQBO": [
-            ("BATCH", "ROBOQBO_BATCH", "Controlli batch registrati"),
-            ("TANK", "ROBOQBO_TANK", "Controlli tank"),
+            ("BATCH", "ROBOQBO_BATCH", "Controlli batch registrati", None),
+            ("TANK", "ROBOQBO_TANK", "Controlli tank", None),
         ],
-        "INVASETTAMENTO": [("CARRELLO", "INVASETTAMENTO_CARRELLO", "Controlli carrelli")],
+        "INVASETTAMENTO": [
+            ("CARRELLO", "INVASETTAMENTO_CARRELLO", "2ª pastorizzazione", "PASTORIZZAZIONE"),
+            ("CARRELLO", "INVASETTAMENTO_CARRELLO", "Shock termico e vuoto", "SHOCK_VUOTO"),
+        ],
     }.get(obj.tipo, [])
-    configured_ambits = [ambit for _control_type, ambit, _title in control_definitions]
+    configured_ambits = [ambit for _control_type, ambit, _title, _phase_code in control_definitions]
     configurations = ConfigurazioneControlloSemplificato.objects.filter(
         attivo=True, ambito__in=configured_ambits,
     ).order_by("ordine", "pk")
@@ -237,9 +244,10 @@ def session(request, pk):
     for control in displayed_controls:
         displayed_by_type.setdefault(control.tipo, []).append(control)
     control_tables = []
-    for control_type, ambit, title in control_definitions:
+    for control_type, ambit, title, phase_code in control_definitions:
         table_rows = displayed_by_type.get(control_type, [])
-        columns = columns_by_ambit.get(ambit, [])
+        columns = [column for column in columns_by_ambit.get(ambit, [])
+                   if phase_code is None or column.codice == phase_code]
         # Durante RoboQbo aperta, i batch previsti sono già nella tabella editabile sopra.
         if batch_formset is not None and control_type == "BATCH" and not table_rows:
             continue
@@ -248,6 +256,7 @@ def session(request, pk):
             control_tables.append({
                 "title": title, "rows": table_rows, "columns": columns,
                 "show_batch_associations": show_associations,
+                "phase_code": phase_code,
                 "colspan": 2 + len(columns) + (1 if show_associations else 0),
             })
     return render(request, "interfaccia/semplice/session.html", {"section": "produzione-semplice", "session": obj,
@@ -258,7 +267,9 @@ def session(request, pk):
         "labeling_remaining": labeling_remaining,
         "withdrawal_plan": withdrawal_plan, "can_view_stock": can_view_stock,
         "moca_articles": moca_articles, "selected_moca_ids": selected_moca_ids,
-        "moca_stock_groups": moca_stock_groups, "control_tables": control_tables})
+        "moca_stock_groups": moca_stock_groups, "control_tables": control_tables,
+        "carrello_past_form": carrello_past_form,
+        "carrello_shock_form": carrello_shock_form})
 
 
 @permitted("auth.can_execute_production")
@@ -409,12 +420,35 @@ def additional_picking(request, pk):
 @require_http_methods(["GET", "POST"])
 def control(request, pk):
     obj = get_object_or_404(SessioneProduzioneSemplificata, pk=pk, stato="APERTA")
+    if obj.tipo == "INVASETTAMENTO":
+        return redirect("ui:simple_session", pk=obj.pk)
     def execute(data):
         for field in ("inizio", "fine"):
             if data.get(field):
                 data[field] = timezone.make_aware(datetime.combine(timezone.localdate(), data[field]))
         return ProduzioneSemplificataService.registra_controllo(actor=request.user, sessione=obj, **data)
     return _form_view(request, ControlForm, execute, "Registra controllo", session=obj)
+
+
+@permitted("auth.can_execute_production")
+@require_http_methods(["POST"])
+def carrello_phase(request, pk, fase):
+    obj = get_object_or_404(SessioneProduzioneSemplificata, pk=pk, tipo="INVASETTAMENTO", stato="APERTA")
+    if fase not in {"pastorizzazione", "shock-vuoto"}:
+        return redirect("ui:simple_session", pk=obj.pk)
+    form = CarrelloPhaseForm(request.POST, session=obj, fase=fase)
+    if form.is_valid():
+        try:
+            ProduzioneSemplificataService.registra_fase_carrello(
+                actor=request.user, sessione=obj, fase=fase, **form.cleaned_data,
+            )
+        except ValidationError as exc:
+            messages.error(request, " · ".join(exc.messages))
+        else:
+            messages.success(request, "Controllo carrello registrato.")
+    else:
+        messages.error(request, "Scegliere il carrello e l'esito del controllo.")
+    return redirect("ui:simple_session", pk=obj.pk)
 
 
 @permitted("auth.can_open_nc")

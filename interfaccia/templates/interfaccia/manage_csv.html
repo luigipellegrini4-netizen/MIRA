@@ -2,7 +2,7 @@
 {% block title %}Amministrazione e configurazione · MIRA{% endblock %}
 {% block breadcrumb %}Amministrazione / Configurazione{% endblock %}
 {% block content %}
-<div class="page-head"><div><p class="eyebrow">AMMINISTRAZIONE</p><h1>Configurazione e dati</h1><p class="muted">Backup completo e scambio dei dati di magazzino.</p></div>{% if user.is_staff %}<a class="button secondary" href="{% url 'admin:index' %}">Configurazione avanzata →</a>{% endif %}</div>
+<div class="page-head"><div><p class="eyebrow">AMMINISTRAZIONE</p><h1>Configurazione e dati</h1><p class="muted">Backup completo e scambio dei dati di magazzino.</p></div><div class="actions">{% if perms.auth.can_manage_backups %}<a class="button secondary" href="{% url 'ui:corrections' %}">Correzioni motivate →</a>{% endif %}{% if user.is_staff %}<a class="button secondary" href="{% url 'admin:index' %}">Configurazione avanzata →</a>{% endif %}</div></div>
 {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
 {% if perms.auth.can_manage_backups %}
 <div class="two-columns">

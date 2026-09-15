@@ -1,0 +1,8 @@
+{% extends 'interfaccia/base.html' %}
+{% block title %}Tabelle · Correzioni · MIRA{% endblock %}
+{% block breadcrumb %}Amministrazione / Correzioni / Tabelle{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'ui:corrections' %}">← Correzioni</a>
+<div class="page-head"><div><p class="eyebrow">SOLO AMMINISTRATORE</p><h1>Tabelle del gestionale</h1><p class="muted">Apri una tabella per trovare il record. Le quantità e i movimenti storici richiedono rettifiche; sugli altri record puoi correggere i campi disponibili o registrare un'annotazione motivata.</p></div></div>
+<section class="panel"><div class="table-wrap"><table><thead><tr><th>Tabella</th><th>Procedura</th><th></th></tr></thead><tbody>{% for table in tables %}<tr><td><strong>{{ table.label }}</strong></td><td>{% if table.editable %}Modifica dei campi consentiti{% else %}Annotazione storica o rettifica dedicata{% endif %}</td><td><a href="{% url 'ui:correction_table' table.app table.name %}">Apri →</a></td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

@@ -46,7 +46,7 @@ class MovementService:
 
     @classmethod
     @transaction.atomic
-    def register(cls, *, actor, lotto, tipo, quantita, origine=None, destinazione=None, note="", input_lavorazione=None, output_lavorazione=None, sessione_semplificata=None, componente=""):
+    def register(cls, *, actor, lotto, tipo, quantita, origine=None, destinazione=None, note="", input_lavorazione=None, output_lavorazione=None, sessione_semplificata=None, componente="", correzione_amministrativa=False):
         from qualita.nc_protections import _nc_movement
         nc_context = _nc_movement.get()
         quality_movement = tipo in {Movimento.Tipo.QUARANTENA, Movimento.Tipo.REINTEGRO, Movimento.Tipo.SCARTO}
@@ -61,7 +61,12 @@ class MovementService:
         permission = cls.PERMISSIONS.get(tipo)
         if permission is None:
             raise ValidationError("Tipo non disponibile nel servizio di magazzino.")
-        require_permission(actor, permission)
+        if correzione_amministrativa:
+            if tipo not in {Movimento.Tipo.RETTIFICA, Movimento.Tipo.VENDITA} or not note.strip():
+                raise ValidationError("Correzione amministrativa consentita solo per rettifica o vendita motivate.")
+            require_permission(actor, "can_manage_backups")
+        else:
+            require_permission(actor, permission)
         if tipo == Movimento.Tipo.CONSUMO:
             source = Lotto.objects.select_related("lavorazione_origine__tipo_lavorazione").filter(pk=persisted_id(lotto, "Lotto")).first()
             if source and source.lavorazione_origine_id and source.lavorazione_origine.tipo_lavorazione.fase_operativa in {"ROBOQBO", "TANK"}:
